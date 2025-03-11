@@ -1,5 +1,9 @@
-use reqwest::Client;
+use reqwest::blocking;
 use serde_json::Value;
+use std::process::Command;
+use std::{thread, time::Duration, io::Cursor};
+use rodio::{Decoder, OutputStream, Sink, source::Source};
+use tokio::runtime::Runtime;
 
 pub(crate) async fn fetch_videos(
     api_key: &str,
@@ -51,26 +55,95 @@ pub(crate) async fn fetch_videos(
 }
 
 use csv::Writer;
+use reqwest::Client;
 
-pub(crate) fn write_to_csv(videos: Vec<Value>) -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new CSV writer and specify the output file name (change if desired)
-    let mut wtr = Writer::from_path("youtube_videos.csv")?;
+pub(crate) fn present_options(videos: Vec<Value>) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Pick your song (check the URL if you're not sure):");
 
-    // Write the header row
-    wtr.write_record(&["Video ID", "Title", "Description", "Published At"])?;
-
-    for video in videos {
+    for (index, video) in videos.iter().enumerate() {
         let snippet = &video["snippet"];
 
-        // Write each video's data to the CSV file
-        wtr.write_record(&[
-            video["id"]["videoId"].as_str().unwrap_or(""),
-            snippet["title"].as_str().unwrap_or(""),
-            snippet["description"].as_str().unwrap_or(""),
-            snippet["publishedAt"].as_str().unwrap_or(""),
-        ])?;
+        println!("{}. Title: {}; URL: https://www.youtube.com/watch?v={}", index + 1, snippet["title"], video["id"]["videoId"]);
     }
 
-    wtr.flush()?; // Ensure all data is written to the file
+    let mut input = String::new();
+
+    std::io::stdin().read_line(&mut input).unwrap();
+
+    if let Ok(index) = input.trim().parse::<usize>() {
+        let video = &videos[index - 1];
+        let video_id = video["id"]["videoId"].as_str().unwrap();
+        let video_url = format!("https://www.youtube.com/watch?v={}", video_id);
+
+        println!("Rock on. Playing: {} ({})", video["snippet"]["title"], video_url);
+    }
+
     Ok(())
+}
+
+// Get the direct audio stream URL using yt-dlp
+fn get_audio_url(videoURL: &str) -> Option<String> {
+    let output = Command::new("yt-dlp")
+        .args(&["-f", "bestaudio", "-g", videoURL])
+        .output()
+        .expect("Failed to execute yt-dlp");
+
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if url.is_empty() { None } else { Some(url) }
+}
+
+// Stream audio from the URL
+fn stream_audio(url: &str) {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        let response = reqwest::get(url)
+            .await
+            .expect("Failed to fetch audio stream");
+        let bytes = response.bytes().await.expect("Failed to read bytes");
+
+        let cursor = Cursor::new(bytes);
+        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+        let sink = Sink::try_new(&stream_handle).unwrap();
+        let source = Decoder::new(cursor).unwrap();
+
+        sink.append(source);
+        sink.sleep_until_end();
+    });
+}
+
+// Fetch lyrics from Musixmatch API
+fn fetch_lyrics(api_key:&str) -> Option<String> {
+    let url = format!(
+        "https://api.musixmatch.com/ws/1.1/track.search?q_track=Thieves%20in%20the%20Night&q_artist=Black%20Star&apikey={}",
+        api_key
+    );
+
+    let response = blocking::get(&url).ok()?.json::<Value>().ok()?;
+    let track_list = response["message"]["body"]["track_list"].as_array()?;
+
+    if !track_list.is_empty() {
+        let track_id = track_list[0]["track"]["track_id"].as_i64()?;
+        let lyrics_url = format!(
+            "https://api.musixmatch.com/ws/1.1/track.lyrics.get?track_id={}&apikey={}",
+            track_id, api_key
+        );
+
+        let lyrics_response = blocking::get(&lyrics_url)
+            .ok()?
+            .json::<Value>()
+            .ok()?;
+        return lyrics_response["message"]["body"]["lyrics"]["lyrics_body"]
+            .as_str()
+            .map(|s| s.to_string());
+    }
+    None
+}
+
+// Display lyrics in sync
+fn display_lyrics(lyrics: &str) {
+    let lines: Vec<&str> = lyrics.lines().collect();
+    for (i, line) in lines.iter().enumerate() {
+        thread::sleep(Duration::from_secs(i as u64 * 5)); // Adjust timing
+        println!("{}", line);
+    }
 }

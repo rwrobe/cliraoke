@@ -1,8 +1,9 @@
 mod lib;
 
 use dotenv::dotenv;
+use lib::{fetch_videos, present_options};
 use std::env;
-use lib::{fetch_videos, write_to_csv};
+use std::process::exit;
 
 const ENV_API_KEY: &str = "YOUTUBE_API_KEY";
 const SEARCH_SUFFIX: &str = "karaoke";
@@ -21,11 +22,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if videos.is_empty() {
                 println!("No videos found");
-            } else {
-                // Call the function to write videos to a CSV file
-                write_to_csv(videos)?;
-                println!("Videos written to CSV");
+                exit(1)
             }
+
+            // Call the function to write videos to a CSV file
+            present_options(videos)?;
         }
         Err(e) => {
             println!("Error fetching videos: {}", e);
