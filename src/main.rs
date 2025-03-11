@@ -5,16 +5,17 @@ use std::env;
 use lib::{fetch_videos, write_to_csv};
 
 const ENV_API_KEY: &str = "YOUTUBE_API_KEY";
+const SEARCH_SUFFIX: &str = "karaoke";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok(); // Load environment variables from .env file
 
     let api_key = env::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
-    let channel_id = "UCBRxDSTfr2aJVODDh4WG_7g"; // Change to your desired channel ID
+    let query = format!("thieves in the night {}", SEARCH_SUFFIX);
 
     // Fetch videos using the YouTube API
-    match fetch_videos(&api_key, channel_id).await {
+    match fetch_videos(&api_key, query.as_str()).await {
         Ok(videos) => {
             println!("Fetched {} videos", videos.len());
 
