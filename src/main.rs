@@ -25,8 +25,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 exit(1)
             }
 
-            // Call the function to write videos to a CSV file
-            present_options(videos)?;
+            // Give song options.
+            let video = present_options(videos)?;
+
+            // Use the result of present_options to get the audio URL and stream it to ffmpeg.
+            if let Some(video) = video {
+                let video_id = video["id"]["videoId"].as_str().unwrap();
+                let audio_url = lib::get_audio_url(video_id);
+
+                if let Some(audio_url) = audio_url {
+                    println!("Streaming audio from: {}", audio_url);
+                    lib::stream_audio(audio_url.as_str());
+                } else {
+                    println!("Failed to get audio URL");
+                }
+            }
         }
         Err(e) => {
             println!("Error fetching videos: {}", e);

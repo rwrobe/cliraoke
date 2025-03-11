@@ -57,7 +57,7 @@ pub(crate) async fn fetch_videos(
 use csv::Writer;
 use reqwest::Client;
 
-pub(crate) fn present_options(videos: Vec<Value>) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn present_options(videos: Vec<Value>) -> Result<Option<Value>, Box<dyn std::error::Error>> {
     println!("Pick your song (check the URL if you're not sure):");
 
     for (index, video) in videos.iter().enumerate() {
@@ -76,15 +76,17 @@ pub(crate) fn present_options(videos: Vec<Value>) -> Result<(), Box<dyn std::err
         let video_url = format!("https://www.youtube.com/watch?v={}", video_id);
 
         println!("Rock on. Playing: {} ({})", video["snippet"]["title"], video_url);
+        return Ok(Some(video.clone()))
     }
 
-    Ok(())
+    Ok(None)
 }
 
 // Get the direct audio stream URL using yt-dlp
-fn get_audio_url(videoURL: &str) -> Option<String> {
+pub(crate) fn get_audio_url(videoID: &str) -> Option<String> {
     let output = Command::new("yt-dlp")
-        .args(&["-f", "bestaudio", "-g", videoURL])
+        // output to stdout
+        .args(&[videoID, "-o", "-", "-f", "bestaudio", "--merge-output-format", "mkv"])
         .output()
         .expect("Failed to execute yt-dlp");
 
@@ -93,7 +95,7 @@ fn get_audio_url(videoURL: &str) -> Option<String> {
 }
 
 // Stream audio from the URL
-fn stream_audio(url: &str) {
+pub(crate) fn stream_audio(url: &str) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let response = reqwest::get(url)
