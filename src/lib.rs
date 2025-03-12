@@ -1,11 +1,47 @@
+use reqwest::Client;
 use reqwest::blocking;
+use rodio::{Decoder, OutputStream, Sink};
 use serde_json::Value;
-use std::process::Command;
-use std::{thread, time::Duration, io::Cursor};
-use rodio::{Decoder, OutputStream, Sink, source::Source};
+use std::error::Error;
+use std::process::{Command, exit};
+use std::{io::Cursor, thread, time::Duration};
 use tokio::runtime::Runtime;
 
-pub(crate) async fn fetch_videos(
+pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Fetch videos using the YouTube API
+    match fetch_videos(&api_key, query).await {
+        Ok(videos) => {
+            println!("Fetched {} videos", videos.len());
+
+            if videos.is_empty() {
+                println!("No videos found");
+                exit(1)
+            }
+
+            // Give song options.
+            let video_id = present_options(videos);
+
+            // Use the result of present_options to get the audio URL and stream it to ffmpeg.
+            let audio_url = get_audio_url(video_id.unwrap().unwrap().trim());
+
+            stream_audio(audio_url.as_str());
+
+            Ok(())
+        }
+        Err(e) => {
+            println!("Error fetching videos: {}", e);
+            if let Some(reqwest_err) = e.downcast_ref::<reqwest::Error>() {
+                if let Some(status) = reqwest_err.status() {
+                    println!("HTTP Status {}", status);
+                }
+            }
+
+            Err("Error fetching videos".into())
+        }
+    }
+}
+
+async fn fetch_videos(
     api_key: &str,
     query: &str,
 ) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
@@ -54,16 +90,18 @@ pub(crate) async fn fetch_videos(
     Ok(videos) // Return the list of videos
 }
 
-use csv::Writer;
-use reqwest::Client;
-
-pub(crate) fn present_options(videos: Vec<Value>) -> Result<Option<Value>, Box<dyn std::error::Error>> {
+fn present_options(videos: Vec<Value>) -> Result<Option<String>, Box<dyn std::error::Error>> {
     println!("Pick your song (check the URL if you're not sure):");
 
     for (index, video) in videos.iter().enumerate() {
         let snippet = &video["snippet"];
 
-        println!("{}. Title: {}; URL: https://www.youtube.com/watch?v={}", index + 1, snippet["title"], video["id"]["videoId"]);
+        println!(
+            "{}. Title: {}; URL: https://www.youtube.com/watch?v={}",
+            index + 1,
+            snippet["title"],
+            video["id"]["videoId"]
+        );
     }
 
     let mut input = String::new();
@@ -72,30 +110,42 @@ pub(crate) fn present_options(videos: Vec<Value>) -> Result<Option<Value>, Box<d
 
     if let Ok(index) = input.trim().parse::<usize>() {
         let video = &videos[index - 1];
-        let video_id = video["id"]["videoId"].as_str().unwrap();
+        let video_id = video["id"]["videoId"].as_str().unwrap().to_string();
         let video_url = format!("https://www.youtube.com/watch?v={}", video_id);
 
-        println!("Rock on. Playing: {} ({})", video["snippet"]["title"], video_url);
-        return Ok(Some(video.clone()))
+        println!(
+            "Rock on. Playing: {} ({})",
+            video["snippet"]["title"], video_url
+        );
+        return Ok(Some(video_id));
     }
 
     Ok(None)
 }
 
 // Get the direct audio stream URL using yt-dlp
-pub(crate) fn get_audio_url(videoID: &str) -> Option<String> {
+fn get_audio_url(video_id: &str) -> String {
     let output = Command::new("yt-dlp")
         // output to stdout
-        .args(&[videoID, "-o", "-", "-f", "bestaudio", "--merge-output-format", "mkv"])
+        .args(&[
+            video_id,
+            "-o",
+            "-",
+            "-f",
+            "bestaudio",
+            "--merge-output-format",
+            "mkv",
+        ])
         .output()
         .expect("Failed to execute yt-dlp");
 
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if url.is_empty() { None } else { Some(url) }
+
+    url
 }
 
 // Stream audio from the URL
-pub(crate) fn stream_audio(url: &str) {
+fn stream_audio(url: &str) {
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
         let response = reqwest::get(url)
@@ -114,7 +164,7 @@ pub(crate) fn stream_audio(url: &str) {
 }
 
 // Fetch lyrics from Musixmatch API
-fn fetch_lyrics(api_key:&str) -> Option<String> {
+fn fetch_lyrics(api_key: &str) -> Option<String> {
     let url = format!(
         "https://api.musixmatch.com/ws/1.1/track.search?q_track=Thieves%20in%20the%20Night&q_artist=Black%20Star&apikey={}",
         api_key
@@ -130,10 +180,7 @@ fn fetch_lyrics(api_key:&str) -> Option<String> {
             track_id, api_key
         );
 
-        let lyrics_response = blocking::get(&lyrics_url)
-            .ok()?
-            .json::<Value>()
-            .ok()?;
+        let lyrics_response = blocking::get(&lyrics_url).ok()?.json::<Value>().ok()?;
         return lyrics_response["message"]["body"]["lyrics"]["lyrics_body"]
             .as_str()
             .map(|s| s.to_string());
