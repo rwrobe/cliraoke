@@ -8,7 +8,11 @@ use std::{io::Cursor, thread, time::Duration};
 use tokio::runtime::Runtime;
 use yt_dlp::Youtube;
 
-pub(crate) async fn run(api_key: &str, query: &str, yt: &Youtube) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) async fn run(
+    api_key: &str,
+    query: &str,
+    yt: &Youtube,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Fetch videos using the YouTube API
     match fetch_videos(&api_key, query).await {
         Ok(videos) => {
@@ -20,12 +24,26 @@ pub(crate) async fn run(api_key: &str, query: &str, yt: &Youtube) -> Result<(), 
             }
 
             // Give song options.
-            let video_id = present_options(videos);
+            let video_id = match present_options(videos) {
+                Ok(Some(id)) => id,
+                Ok(None) => {
+                    println!("No song selected");
+                    return Ok(());
+                }
+                Err(e) => {
+                    println!("Error selecting song: {}", e);
+                    return Err(e);
+                }
+            };
 
             // Use the result of present_options to get the audio URL and stream it to ffmpeg.
-            let audio_url = get_audio_url(yt, video_id.unwrap().unwrap().trim());
-
-            stream_audio(audio_url.as_str());
+            match get_audio_url(yt, &video_id) {
+                Ok(audio_url) => stream_audio(&audio_url),
+                Err(e) => {
+                    println!("Failed to get audio URL: {}", e);
+                    return Err(e);
+                }
+            };
 
             Ok(())
         }
@@ -125,25 +143,32 @@ fn present_options(videos: Vec<Value>) -> Result<Option<String>, Box<dyn std::er
 }
 
 // Get the direct audio stream URL using yt-dlp
-fn get_audio_url(yt: &Youtube, video_id: &str) -> String {
-    yt.download_audio_stream_from_url(format!("https://www.youtube.com/watch?v={}", video_id), "audio.mp3").await?;
+fn get_audio_url(yt: &Youtube, video_id: &str) -> Result<String, Box<dyn Error>> {
     let output = Command::new("yt-dlp")
         // output to stdout
         .args(&[
             video_id,
-            "-o",
-            "-",
             "-f",
             "bestaudio",
+            "-g",
+            "-o",
+            "-",
             "--merge-output-format",
             "mkv",
         ])
         .output()
-        .expect("Failed to execute yt-dlp");
+        .map_err(|e| -> Box<dyn Error> { format!("Failed to execute yt-dlp: {}", e).into() })?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "yt-dlp command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
 
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
-    url
+    Ok(url)
 }
 
 // Stream audio from the URL
