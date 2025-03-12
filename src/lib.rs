@@ -6,8 +6,9 @@ use std::error::Error;
 use std::process::{Command, exit};
 use std::{io::Cursor, thread, time::Duration};
 use tokio::runtime::Runtime;
+use yt_dlp::Youtube;
 
-pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) async fn run(api_key: &str, query: &str, yt: &Youtube) -> Result<(), Box<dyn std::error::Error>> {
     // Fetch videos using the YouTube API
     match fetch_videos(&api_key, query).await {
         Ok(videos) => {
@@ -22,7 +23,7 @@ pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::e
             let video_id = present_options(videos);
 
             // Use the result of present_options to get the audio URL and stream it to ffmpeg.
-            let audio_url = get_audio_url(video_id.unwrap().unwrap().trim());
+            let audio_url = get_audio_url(yt, video_id.unwrap().unwrap().trim());
 
             stream_audio(audio_url.as_str());
 
@@ -124,7 +125,8 @@ fn present_options(videos: Vec<Value>) -> Result<Option<String>, Box<dyn std::er
 }
 
 // Get the direct audio stream URL using yt-dlp
-fn get_audio_url(video_id: &str) -> String {
+fn get_audio_url(yt: &Youtube, video_id: &str) -> String {
+    yt.download_audio_stream_from_url(format!("https://www.youtube.com/watch?v={}", video_id), "audio.mp3").await?;
     let output = Command::new("yt-dlp")
         // output to stdout
         .args(&[
