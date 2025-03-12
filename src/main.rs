@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query = format!("thieves in the night {}", SEARCH_SUFFIX);
 
     match run(&api_key, &query).await {
-        1Ok(result) => {
+        Ok(result) => {
             println!("Success!");
             Ok(())
         },

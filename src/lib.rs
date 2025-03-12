@@ -146,21 +146,40 @@ fn get_audio_url(video_id: &str) -> String {
 
 // Stream audio from the URL
 fn stream_audio(url: &str) {
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
-        let response = reqwest::get(url)
-            .await
-            .expect("Failed to fetch audio stream");
-        let bytes = response.bytes().await.expect("Failed to read bytes");
+    if tokio::runtime::Handle::try_current().is_ok() {
+        tokio::task::block_in_place(|| {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to build runtime");
 
-        let cursor = Cursor::new(bytes);
-        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-        let sink = Sink::try_new(&stream_handle).unwrap();
-        let source = Decoder::new(cursor).unwrap();
+            runtime.block_on(async {
+                play_audio(url).await;
+            });
+        });
+    } else {
+        let rt = Runtime::new().expect("Failed to create runtime");
+        rt.block_on(async {
+            play_audio(url).await;
+        });
+    }
+}
 
-        sink.append(source);
-        sink.sleep_until_end();
-    });
+async fn play_audio(url: &str) {
+    println!("Playing audio from {}...", url);
+    exit(0);
+    let response = reqwest::get(url)
+        .await
+        .expect("Failed to fetch audio stream");
+    let bytes = response.bytes().await.expect("Failed to read bytes");
+
+    let cursor = Cursor::new(bytes);
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+    let source = Decoder::new(cursor).unwrap();
+
+    sink.append(source);
+    sink.sleep_until_end();
 }
 
 // Fetch lyrics from Musixmatch API
