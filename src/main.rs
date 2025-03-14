@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(1);
     }
 
-    print!("What a banger. OK, now select the lyrics to use: ");
+    println!("What a banger. OK, now select the lyrics to use: ");
 
     // Show options for the lyrics:
     let mut lyr_opts: Vec<CLIOption> = Vec::new();
