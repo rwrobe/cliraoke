@@ -64,7 +64,6 @@ pub(crate) mod audio {
     // Get the direct audio stream URL using yt-dlp
     pub fn get_youtube_audio_url(video_id: &str) -> Option<String> {
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
-        println!("Getting audio URL for YouTube video: {}", url);
 
         let output = Command::new("yt-dlp")
             .args([
@@ -81,7 +80,6 @@ pub(crate) mod audio {
 
         if output.status.success() {
             let audio_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            println!("Successfully got audio URL: {}", audio_url);
             Some(audio_url)
         } else {
             let error = String::from_utf8_lossy(&output.stderr);

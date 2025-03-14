@@ -61,7 +61,6 @@ pub mod lyrics {
 
     pub fn fetch_lyrics(id: &str) -> Option<BTreeMap<u64, String>> {
         let url = format!("https://lrclib.net/api/get/{}", id);
-        println!("Fetching lyrics from {}", url);
 
         let response = blocking::get(&url).ok()?;
 
@@ -100,8 +99,6 @@ pub mod lyrics {
             }
         };
 
-        println!("Processing synced lyrics");
-
         // Create regex to extract timestamp and text
         let re = Regex::new(r"^\[(\d+):(\d+)\.(\d+)\]\s*(.*)$").ok()?;
 
@@ -127,7 +124,6 @@ pub mod lyrics {
             }
         }
 
-        println!("Processed {} lyric lines", time_to_lyric.len());
         Some(time_to_lyric)
     }
 
