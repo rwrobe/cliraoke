@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get user query.
     println!("Welcome to CLIraoke.");
-    println!("Please type a song or artist name: ");
+    print!("Please type a song or artist name: ");
     let query_base = cli::cli::get_user_input();
 
     // TODO: Run lyric and video fetching concurrently.
@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(1);
     }
 
-    println!("What a banger. OK, now select the lyrics to use: ");
+    print!("What a banger. OK, now select the lyrics to use: ");
 
     // Show options for the lyrics:
     let mut lyr_opts: Vec<CLIOption> = Vec::new();

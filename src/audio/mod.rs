@@ -116,8 +116,6 @@ pub(crate) mod audio {
     }
 
     pub fn play_audio(url: &str) {
-    println!("Playing audio from {}...", url);
-    println!("Lyrics will be displayed as the song plays.");
 
     // Create a Command to run ffplay with silenced output
     let mut cmd = Command::new("ffplay");

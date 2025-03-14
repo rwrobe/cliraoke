@@ -39,7 +39,7 @@ pub mod lyrics {
         // Extract lyric objs and add to the vector
         for item in json {
             // Get other fields
-            let id = item.get("id").and_then(|v| v.as_str());
+            let id = item.get("id").and_then(|v| v.as_u64()).map(|id| id.to_string());
             let synced_lyrics = item.get("syncedLyrics").and_then(|v| v.as_str());
             let artist = item.get("artistName").and_then(|v| v.as_str());
             let title = item.get("trackName").and_then(|v| v.as_str());
@@ -147,7 +147,7 @@ pub mod lyrics {
 
         // Set up a clean display area for lyrics
         println!("\n\n\n"); // Add some space before lyrics start
-        println!("----- LYRICS -----");
+        println!("----- LFG -----");
 
         // Continue until we've displayed all lyrics
         while displayed_up_to_index < timestamps.len() {
@@ -175,6 +175,6 @@ pub mod lyrics {
             thread::sleep(Duration::from_millis(10));
         }
 
-        println!("----- END OF LYRICS -----");
+        println!("----- BRAVOthieves in the night -----");
     }
 }
