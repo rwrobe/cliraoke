@@ -11,6 +11,7 @@ use tokio::runtime::Runtime;
 use yt_dlp::Youtube;
 use std::collections::BTreeMap;
 use regex::Regex;
+use std::sync::{Arc, Mutex};
 
 pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::error::Error>> {
     match fetch_videos(api_key, query).await {
@@ -124,6 +125,7 @@ async fn fetch_videos(
 
     Ok(videos) // Return the list of videos
 }
+
 fn present_yt_options(videos: Vec<Value>) -> Option<String> {
     println!("Pick your song (check the URL if you're not sure):");
 
@@ -208,27 +210,88 @@ fn get_youtube_audio_url(video_id: &str) -> Option<String> {
 
 fn play_audio(url: &str) {
     println!("Playing audio from {}...", url);
+    println!("Lyrics will be displayed as the song plays.");
 
-    let status = Command::new("ffplay")
-        .args(["-nodisp", "-autoexit", url])
-        .status();
+    // Create a Command to run ffplay with silenced output
+    let mut cmd = Command::new("ffplay");
 
-    if let Ok(status) = status {
-        if status.success() {
-            println!("Audio playback completed via ffplay");
-            return;
-        } else {
-            println!("ffplay failed with status: {}", status);
+    // Add arguments
+    cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", url]);
+
+    // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
+    #[cfg(target_family = "unix")]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+    }
+
+    #[cfg(target_family = "windows")]
+    {
+        use std::process::Stdio;
+        cmd.stdout(Stdio::null())
+            .stderr(Stdio::null());
+    }
+
+    // Run the command
+    match cmd.status() {
+        Ok(status) => {
+            if status.success() {
+                println!("Audio playback completed via ffplay");
+            } else {
+                println!("ffplay failed with status: {}", status);
+            }
+        },
+        Err(e) => {
+            println!("Failed to run ffplay: {}", e);
         }
     }
 }
 
 // Fetch lyrics from Musixmatch API
-fn fetch_lyrics() -> Option<std::collections::BTreeMap<u64, String>> {
+fn fetch_lyrics() -> Option<BTreeMap<u64, String>> {
     let url = format!("https://lrclib.net/api/get/{}", 17533182);
+    println!("Fetching lyrics from {}", url);
 
-    let response = blocking::get(&url).ok()?.json::<Value>().ok()?;
-    let synced_raw = response["message"]["body"]["syncedLyrics"].as_str()?;
+    let response = blocking::get(&url).ok()?;
+
+    if !response.status().is_success() {
+        println!("Failed to fetch lyrics: {}", response.status());
+        return None;
+    }
+
+    let json_response = response.json::<Value>().ok()?;
+
+    // Check if we have synced lyrics
+    let synced_raw = match json_response.get("syncedLyrics") {
+        Some(lyrics) => lyrics.as_str()?,
+        None => {
+            println!("No synced lyrics found in response");
+            // Check if lyrics are nested in message/body
+            match json_response.get("message") {
+                Some(message) => match message.get("body") {
+                    Some(body) => match body.get("syncedLyrics") {
+                        Some(lyrics) => lyrics.as_str()?,
+                        None => {
+                            println!("No synced lyrics found in message.body");
+                            return None;
+                        }
+                    },
+                    None => {
+                        println!("No body found in message");
+                        return None;
+                    }
+                },
+                None => {
+                    println!("No message found in response");
+                    return None;
+                }
+            }
+        }
+    };
+
+    println!("Processing synced lyrics");
+
     // Create regex to extract timestamp and text
     let re = Regex::new(r"^\[(\d+):(\d+)\.(\d+)\]\s*(.*)$").ok()?;
 
@@ -254,9 +317,9 @@ fn fetch_lyrics() -> Option<std::collections::BTreeMap<u64, String>> {
         }
     }
 
+    println!("Processed {} lyric lines", time_to_lyric.len());
     Some(time_to_lyric)
 }
-
 
 // Display lyrics in sync with music playback
 fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
