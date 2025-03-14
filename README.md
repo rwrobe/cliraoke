@@ -32,5 +32,7 @@ To make this better:
 
 - [ ] Better controls: kill a song without killing the app
 - [ ] Queueing
+- [ ] Back up LRCLib dump
+- [ ] Add DB so that users can indicate when a song/lyric combo is good. The DB saves the two IDs and returns search hits from there first.
 - [ ] Ability to scrub audio forward with arrow keys, so syncing lines up
-- [ ] ASCII stock photos, like one of those cheesy old karaoke displays
+- [ ] ASCII stock photos, like one of those cheesy old karaoke display
