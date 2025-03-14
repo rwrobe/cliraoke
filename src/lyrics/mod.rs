@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
-
 pub mod lyrics {
     use regex::Regex;
-    use reqwest::{Client, blocking};
+    use reqwest::{blocking, Client};
     use serde_json::Value;
     use std::collections::BTreeMap;
     use std::thread;

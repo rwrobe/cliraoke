@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Wait for the lyrics to be ready before playing.
     match lyrics_thread.await {
         Ok(Some(lyrics_map)) => {
-            let play_thread = std::thread::spawn(move || {
+            let _play_thread = std::thread::spawn(move || {
                 audio::audio::play_audio(audio_url.unwrap().as_str());
             });
 

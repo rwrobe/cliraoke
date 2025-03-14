@@ -1,7 +1,7 @@
 pub(crate) mod audio {
-    use std::process::Command;
     use reqwest::Client;
     use serde_json::Value;
+    use std::process::Command;
 
     const SEARCH_SUFFIX: &str = "karaoke version";
 
@@ -17,7 +17,7 @@ pub(crate) mod audio {
     ) -> Result<Vec<Video>, Box<dyn std::error::Error>> {
         let client = Client::new(); // Create a new HTTP client
         let mut videos: Vec<Video> = Vec::new(); // Initialize a vector to store videos
-        let mut page_token = String::new(); // Token to handle pagination
+        let page_token = String::new(); // Token to handle pagination
         let max_results = 5; // Maximum number of results per page
 
         // Build the API request URL
@@ -56,11 +56,6 @@ pub(crate) mod audio {
                     });
                 }
             }
-        }
-
-        // Handle pagination by checking for the nextPageToken
-        if let Some(next_page_token) = json["nextPageToken"].as_str() {
-            page_token = next_page_token.to_string();
         }
 
         Ok(videos) // Return the list of videos
@@ -126,7 +121,6 @@ pub(crate) mod audio {
     // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
     #[cfg(target_family = "unix")]
     {
-        use std::os::unix::process::CommandExt;
         cmd.stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
     }

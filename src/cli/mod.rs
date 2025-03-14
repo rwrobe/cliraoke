@@ -1,5 +1,3 @@
-use std::io;
-
 pub(crate) mod cli {
     use std::io::{self, Write};
 
@@ -28,7 +26,6 @@ pub(crate) mod cli {
     pub fn present_options(options: Vec<CLIOption>) -> Option<CLIOption> {
         for (index, option) in options.iter().enumerate() {
             let mut artist_str = String::new();
-            let mut url_str = String::new();
 
             if let Some(artist) = &option.artist {
                 artist_str = format!(" by {}", artist);
