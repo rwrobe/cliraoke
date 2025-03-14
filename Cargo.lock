@@ -1401,7 +1401,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "oke-doke"
+name = "cliraoke"
 version = "0.1.0"
 dependencies = [
  "dotenv",
