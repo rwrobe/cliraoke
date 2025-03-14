@@ -60,6 +60,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.97"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
+
+[[package]]
 name = "arbitrary"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -258,10 +264,12 @@ checksum = "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688"
 name = "cliraoke"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "dotenv",
  "regex",
  "reqwest 0.11.27",
  "rodio",
+ "serde",
  "serde_json",
  "tokio",
  "yt-dlp",

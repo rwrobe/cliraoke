@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let videos = audio::audio::fetch_videos(api_key.as_str(), query_base.as_str()).await;
 
     if videos.is_err() {
-        println!("Error fetching videos: {}", videos.err().unwrap());
+        println!("Error fetching videos: {}", videos.err().and_then(|e| Some(e.to_string())).unwrap());
         exit(1);
     }
 

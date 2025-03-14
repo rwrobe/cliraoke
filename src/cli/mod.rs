@@ -1,7 +1,7 @@
 pub(crate) mod cli {
     use std::io::{self, Write};
 
-    #[derive(Clone)] //wtf is this
+    #[derive(Clone)]
     pub struct CLIOption {
         pub(crate) title: String,
         pub(crate) artist: Option<String>,

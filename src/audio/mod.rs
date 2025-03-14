@@ -2,6 +2,7 @@ pub(crate) mod audio {
     use reqwest::Client;
     use serde_json::Value;
     use std::process::Command;
+    use anyhow::anyhow;
 
     const SEARCH_SUFFIX: &str = "karaoke version";
 
@@ -14,16 +15,18 @@ pub(crate) mod audio {
     pub async fn fetch_videos(
         api_key: &str,
         query: &str,
-    ) -> Result<Vec<Video>, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<Vec<Video>> {
         let client = Client::new(); // Create a new HTTP client
-        let mut videos: Vec<Video> = Vec::new(); // Initialize a vector to store videos
         let page_token = String::new(); // Token to handle pagination
         let max_results = 5; // Maximum number of results per page
 
         // Build the API request URL
         let url = format!(
             "https://www.googleapis.com/youtube/v3/search?key={}&q={}&part=snippet,id&order=relevance&maxResults={}&type=video&pageToken={}",
-            api_key, format!("{} {}", query, SEARCH_SUFFIX), max_results, page_token
+            api_key,
+            format!("{} {}", query, SEARCH_SUFFIX),
+            max_results,
+            page_token
         );
 
         let response = client
@@ -36,27 +39,41 @@ pub(crate) mod audio {
         if !response.status().is_success() {
             println!("API request failed with status: {}", response.status());
             println!("Response body: {}", response.text().await?);
-            return Err("API request failed".into());
+            return Err(anyhow!("API request failed"));
         }
 
         let json: Value = response.json().await?; // Parse the response body as JSON
 
-        // Create video vector.
-        if let Some(items) = json["items"].as_array() {
-            for item in items {
-                if let (Some(id), Some(title), Some(artist)) = (
-                    item["id"]["videoId"].as_str(),
-                    item["snippet"]["title"].as_str(),
-                    item["snippet"]["channelTitle"].as_str(),
-                ) {
-                    videos.push(Video {
-                        id: id.to_string(),
-                        title: title.to_string(),
-                        artist: artist.to_string(),
-                    });
-                }
-            }
+
+        #[derive(Debug, serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct YtId {
+            video_id: String,
         }
+        #[derive(Debug, serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct YtSnippet {
+            title: String,
+            channel_title: String,
+        }
+        #[derive(Debug, serde::Deserialize)]
+        struct YoutubeItem {
+            id: YtId,
+            snippet: YtSnippet,
+        }
+        #[derive(Debug, serde::Deserialize)]
+        struct YoutubeResponse {
+            items: Vec<YoutubeItem>
+        }
+
+        let json_response = serde_json::from_value::<YoutubeResponse>(json)?;
+        let videos: Vec<_> = json_response.items.iter().map(|item| {
+            Video {
+                id: item.id.video_id.to_owned(),
+                title: item.snippet.title.to_owned(),
+                artist: item.snippet.channel_title.to_owned(),
+            }
+        }).collect();
 
         Ok(videos) // Return the list of videos
     }
@@ -109,38 +126,37 @@ pub(crate) mod audio {
     }
 
     pub fn play_audio(url: &str) {
+        // Create a Command to run ffplay with silenced output
+        let mut cmd = Command::new("ffplay");
 
-    // Create a Command to run ffplay with silenced output
-    let mut cmd = Command::new("ffplay");
+        // Add arguments
+        cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", url]);
 
-    // Add arguments
-    cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", url]);
+        // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
+        #[cfg(target_family = "unix")]
+        {
+            cmd.stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+        }
 
-    // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
-    #[cfg(target_family = "unix")]
-    {
-        cmd.stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-    }
+        #[cfg(target_family = "windows")]
+        {
+            use std::process::Stdio;
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        }
 
-    #[cfg(target_family = "windows")]
-    {
-        use std::process::Stdio;
-        cmd.stdout(Stdio::null()).stderr(Stdio::null());
-    }
-
-    // Run the command
-    match cmd.status() {
-        Ok(status) => {
-            if status.success() {
-                println!("Audio playback completed via ffplay");
-            } else {
-                println!("ffplay failed with status: {}", status);
+        // Run the command
+        match cmd.status() {
+            Ok(status) => {
+                if status.success() {
+                    println!("Audio playback completed via ffplay");
+                } else {
+                    println!("ffplay failed with status: {}", status);
+                }
+            }
+            Err(e) => {
+                println!("Failed to run ffplay: {}", e);
             }
         }
-        Err(e) => {
-            println!("Failed to run ffplay: {}", e);
-        }
     }
-}
 }
