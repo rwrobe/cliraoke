@@ -169,6 +169,6 @@ pub mod lyrics {
             thread::sleep(Duration::from_millis(10));
         }
 
-        println!("----- BRAVOthieves in the night -----");
+        println!("----- BRAVO -----");
     }
 }
