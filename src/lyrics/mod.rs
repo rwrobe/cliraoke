@@ -130,17 +130,13 @@ pub mod lyrics {
     pub fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
         println!("Starting synchronized lyrics display");
 
-        // Start a timer to track playback time
         let start_time = Instant::now();
 
-        // Create a clone of the lyrics map that we can iterate through
         let timestamps: Vec<u64> = lyrics_map.keys().cloned().collect();
 
-        // Track which lyrics we've already displayed
         let mut displayed_up_to_index = 0;
 
-        // Set up a clean display area for lyrics
-        println!("\n\n\n"); // Add some space before lyrics start
+        println!("\n\n\n");
         println!("----- LFG -----");
 
         // Continue until we've displayed all lyrics
@@ -149,6 +145,7 @@ pub mod lyrics {
             let current_time_ms = start_time.elapsed().as_millis() as u64;
 
             // Check if we need to display new lyrics
+            // TODO this feels gross. Can we do it another way?
             while displayed_up_to_index < timestamps.len()
                 && current_time_ms >= timestamps[displayed_up_to_index]
             {
