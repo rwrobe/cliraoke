@@ -1,20 +1,39 @@
+use regex::Regex;
 use reqwest::Client;
 use reqwest::blocking;
 use reqwest::blocking::get;
 use rodio::{Decoder, OutputStream, Sink};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::error::Error;
-use std::io::BufReader;
+use std::io::{self, BufReader, Write};
 use std::process::{Command, exit};
-use std::{io::Cursor, thread, time::{Duration, Instant}};
+use std::sync::{Arc, Mutex};
+use std::{
+    io::Cursor,
+    thread,
+    time::{Duration, Instant},
+};
+use std::fmt::format;
 use tokio::runtime::Runtime;
 use yt_dlp::Youtube;
-use std::collections::BTreeMap;
-use regex::Regex;
-use std::sync::{Arc, Mutex};
 
-pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::error::Error>> {
-    match fetch_videos(api_key, query).await {
+const SEARCH_SUFFIX: &str = "karaoke version";
+
+pub(crate) async fn run(api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Get user query.
+    let query_base = get_user_input("Welcome to caraoke. Please type a song or artist name: ");
+
+    // Append the search suffix
+    let query = format!("{} {}", query_base, SEARCH_SUFFIX);
+
+    print!("Straight banger. OK, now select the lyrics to use:");
+    match search_lyrics(&query).await {
+        Ok(_) => {}
+        Err(_) => {}
+    }
+
+    match fetch_videos(api_key, query.as_str()).await {
         Ok(videos) => {
             println!("Fetched {} videos", videos.len());
 
@@ -35,9 +54,7 @@ pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::e
 
                 if let Some(audio_url) = audio_url {
                     // Fetch lyrics in a separate thread
-                    let lyrics_handle = tokio::task::spawn_blocking(move || {
-                        fetch_lyrics()
-                    });
+                    let lyrics_handle = tokio::task::spawn_blocking(move || fetch_lyrics());
 
                     // Start playing audio
                     let play_handle = std::thread::spawn(move || {
@@ -75,6 +92,64 @@ pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::e
             Err("Error fetching videos".into())
         }
     }
+}
+
+fn get_user_input(msg: &str) -> String {
+    print!("{}", format!("{}: ", msg));
+
+    io::stdout().flush().expect("Failed to flush stdout");
+
+    // Read the input
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
+
+    // Trim whitespace and return
+    let query_base = input.trim().to_string();
+
+    query_base
+}
+
+async fn search_lyrics(query: &str) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
+    let client = Client::new(); // Create a new HTTP client
+    let mut lyrIds = Vec::new(); // Initialize a vector to store videos
+    let base_url = "https://lrclib.net/api/search";
+    let url = format!("{}?q={}", base_url, query);
+
+    let response = client
+        .get(&url)
+        .header("Referer", "oke-doke") // Add referer header
+        .send()
+        .await?; // Send the HTTP GET request
+
+    // Check if the response was successful
+    if !response.status().is_success() {
+        println!("API request failed with status: {}", response.status());
+        println!("Response body: {}", response.text().await?);
+        return Err("API request failed".into());
+    }
+
+    let json: Value = response.json().await?; // Parse the response body as JSON
+
+    // Check for API errors
+    if let Some(error) = json.get("error") {
+        print!("API returned an error: {:?}", error);
+        return Err("API returned an error".into());
+    }
+
+    // Extract lyric objs and add to the vector
+    if let Some(lyr) = json.as_array() {
+        for item in lyr.iter() {
+            if let Some(synced_lyrics) = item.get("syncedLyrics") {
+                if !synced_lyrics.is_null() && synced_lyrics.as_str().is_some() {
+                    lyrIds.push(item.clone());
+                }
+            }
+        }
+    }
+
+    Ok(lyrIds)
 }
 
 async fn fetch_videos(
@@ -142,7 +217,7 @@ fn present_yt_options(videos: Vec<Value>) -> Option<String> {
 
     let mut input = String::new();
 
-    std::io::stdin().read_line(&mut input).unwrap();
+    io::stdin().read_line(&mut input).unwrap();
 
     if let Ok(index) = input.trim().parse::<usize>() {
         let video = &videos[index - 1];
@@ -229,8 +304,7 @@ fn play_audio(url: &str) {
     #[cfg(target_family = "windows")]
     {
         use std::process::Stdio;
-        cmd.stdout(Stdio::null())
-            .stderr(Stdio::null());
+        cmd.stdout(Stdio::null()).stderr(Stdio::null());
     }
 
     // Run the command
@@ -241,7 +315,7 @@ fn play_audio(url: &str) {
             } else {
                 println!("ffplay failed with status: {}", status);
             }
-        },
+        }
         Err(e) => {
             println!("Failed to run ffplay: {}", e);
         }
@@ -335,7 +409,7 @@ fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
     let mut displayed_up_to_index = 0;
 
     // Set up a clean display area for lyrics
-    println!("\n\n\n");  // Add some space before lyrics start
+    println!("\n\n\n"); // Add some space before lyrics start
     println!("----- LYRICS -----");
 
     // Continue until we've displayed all lyrics
@@ -344,7 +418,9 @@ fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
         let current_time_ms = start_time.elapsed().as_millis() as u64;
 
         // Check if we need to display new lyrics
-        while displayed_up_to_index < timestamps.len() && current_time_ms >= timestamps[displayed_up_to_index] {
+        while displayed_up_to_index < timestamps.len()
+            && current_time_ms >= timestamps[displayed_up_to_index]
+        {
             let timestamp = timestamps[displayed_up_to_index];
             if let Some(lyric) = lyrics_map.get(&timestamp) {
                 // Calculate minutes and seconds for display
