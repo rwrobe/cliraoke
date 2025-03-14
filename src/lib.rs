@@ -28,27 +28,27 @@ pub(crate) async fn run(api_key: &str) -> Result<(), Box<dyn std::error::Error>>
     let query = format!("{} {}", query_base, SEARCH_SUFFIX);
 
     print!("Straight banger. OK, now select the lyrics to use:");
-    match search_lyrics(&query).await {
-        Ok(options) => {
-            if options.is_empty() {
-                println!("No lyrics found");
-                exit(1);
+    match fetch_videos(api_key, query.as_str()).await {
+        Ok(videos) => {
+            println!("Fetched {} videos", videos.len());
+
+            if videos.is_empty() {
+                println!("No videos found");
+                exit(1)
             }
 
-            let lyric_uid =
-                tokio::task::spawn_blocking(move || present_yt_options(options)).await?;
-            match fetch_videos(api_key, query.as_str()).await {
-                Ok(videos) => {
-                    println!("Fetched {} videos", videos.len());
+            // Present options is a blocking operation, use spawn_blocking
+            let video_id = tokio::task::spawn_blocking(move || present_yt_options(videos)).await?;
 
-                    if videos.is_empty() {
-                        println!("No videos found");
-                        exit(1)
+            match search_lyrics(&query).await {
+                Ok(options) => {
+                    if options.is_empty() {
+                        println!("No lyrics found");
+                        exit(1);
                     }
 
-                    // Present options is a blocking operation, use spawn_blocking
-                    let video_id =
-                        tokio::task::spawn_blocking(move || present_yt_options(videos)).await?;
+                    let lyric_uid =
+                        tokio::task::spawn_blocking(move || present_yt_options(options)).await?;
 
                     if let Some(video_id) = video_id {
                         // Get YouTube audio URL is also blocking
@@ -130,7 +130,6 @@ async fn search_lyrics(query: &str) -> Result<Vec<Value>, Box<dyn std::error::Er
 
     let response = client
         .get(&url)
-        .header("Referer", "oke-doke") // Add referer header
         .send()
         .await?; // Send the HTTP GET request
 
