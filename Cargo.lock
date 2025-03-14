@@ -255,6 +255,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688"
 
 [[package]]
+name = "cliraoke"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "regex",
+ "reqwest 0.11.27",
+ "rodio",
+ "serde_json",
+ "tokio",
+ "yt-dlp",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1398,19 +1411,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6951b4e8bf21c8193da321bcce9c9dd2e13c858fe078bf9054a288b419ae5d6e"
 dependencies = [
  "byteorder",
-]
-
-[[package]]
-name = "cliraoke"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "regex",
- "reqwest 0.11.27",
- "rodio",
- "serde_json",
- "tokio",
- "yt-dlp",
 ]
 
 [[package]]
