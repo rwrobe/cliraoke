@@ -20,6 +20,13 @@ use yt_dlp::Youtube;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
+struct LyricInfo {
+    id: String,
+    artist: String,
+    title: String,
+    synced_lyrics: String,
+}
+
 pub(crate) async fn run(api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Get user query.
     let query_base = get_user_input("Welcome to caraoke. Please type a song or artist name: ");
@@ -40,7 +47,7 @@ pub(crate) async fn run(api_key: &str) -> Result<(), Box<dyn std::error::Error>>
             // Present options is a blocking operation, use spawn_blocking
             let video_id = tokio::task::spawn_blocking(move || present_yt_options(videos)).await?;
 
-            match search_lyrics(&query).await {
+            match search_lyrics(&query_base).await {
                 Ok(options) => {
                     if options.is_empty() {
                         println!("No lyrics found");
@@ -48,7 +55,7 @@ pub(crate) async fn run(api_key: &str) -> Result<(), Box<dyn std::error::Error>>
                     }
 
                     let lyric_uid =
-                        tokio::task::spawn_blocking(move || present_yt_options(options)).await?;
+                        tokio::task::spawn_blocking(move || present_lyric_options(options)).await?;
 
                     if let Some(video_id) = video_id {
                         // Get YouTube audio URL is also blocking
@@ -122,14 +129,15 @@ fn get_user_input(msg: &str) -> String {
     query_base
 }
 
-async fn search_lyrics(query: &str) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
+async fn search_lyrics(query: &str) -> Result<Vec<LyricInfo>, Box<dyn std::error::Error>> {
     let client = Client::new(); // Create a new HTTP client
-    let mut lyrIds = Vec::new(); // Initialize a vector to store videos
+    let mut lyrics = Vec::new(); // Initialize a vector to store videos
     let base_url = "https://lrclib.net/api/search";
     let url = format!("{}?q={}", base_url, query);
 
     let response = client
         .get(&url)
+        .header("Referer", "https://lrclib.net") // Add referer header
         .send()
         .await?; // Send the HTTP GET request
 
@@ -140,26 +148,43 @@ async fn search_lyrics(query: &str) -> Result<Vec<Value>, Box<dyn std::error::Er
         return Err("API request failed".into());
     }
 
-    let json: Value = response.json().await?; // Parse the response body as JSON
-
-    // Check for API errors
-    if let Some(error) = json.get("error") {
-        print!("API returned an error: {:?}", error);
-        return Err("API returned an error".into());
-    }
+    let json: Vec<Value> = response.json().await?; // Parse the response body as JSON array
 
     // Extract lyric objs and add to the vector
-    if let Some(lyr) = json.as_array() {
-        for item in lyr.iter() {
-            if let Some(synced_lyrics) = item.get("syncedLyrics") {
-                if !synced_lyrics.is_null() && synced_lyrics.as_str().is_some() {
-                    lyrIds.push(item.clone());
+    for item in json {
+        // Get id as a string regardless of whether it's a number or string in JSON
+        let id = match item.get("id") {
+            Some(v) => {
+                if v.is_string() {
+                    v.as_str().map(|s| s.to_string())
+                } else if v.is_number() {
+                    Some(v.to_string())
+                } else {
+                    None
                 }
+            }
+            None => None,
+        };
+
+        // Get other fields
+        let synced_lyrics = item.get("syncedLyrics").and_then(|v| v.as_str());
+        let artist = item.get("artistName").and_then(|v| v.as_str());
+        let title = item.get("trackName").and_then(|v| v.as_str());
+
+        if let (Some(synced_lyrics), Some(id), Some(artist), Some(title)) =
+            (synced_lyrics, id, artist, title) {
+            if !synced_lyrics.is_empty() {
+                lyrics.push(LyricInfo {
+                    id,
+                    artist: artist.to_string(),
+                    title: title.to_string(),
+                    synced_lyrics: synced_lyrics.to_string(),
+                });
             }
         }
     }
 
-    Ok(lyrIds)
+    Ok(lyrics)
 }
 
 async fn fetch_videos(
@@ -244,15 +269,15 @@ fn present_yt_options(videos: Vec<Value>) -> Option<String> {
     None
 }
 
-fn present_lyric_options(lyrics: Vec<Value>) -> Option<String> {
-    println!("Pick your song (check the URL if you're not sure):");
+fn present_lyric_options(lyrics: Vec<LyricInfo>) -> Option<String> {
+    println!("Pick your lyrics:");
 
     for (index, lyric) in lyrics.iter().enumerate() {
         println!(
             "{}. Artist: {}; Title: {}",
             index + 1,
-            lyric.get("artist").unwrap(),
-            lyric.get("title").unwrap()
+            lyric.artist,
+            lyric.title
         );
     }
 
@@ -262,14 +287,13 @@ fn present_lyric_options(lyrics: Vec<Value>) -> Option<String> {
 
     if let Ok(index) = input.trim().parse::<usize>() {
         let lyric = &lyrics[index - 1];
-        let lyric_id = lyric.get("id").unwrap().as_str();
 
         println!(
             "Rock on. Playing: {} ({})",
-            lyric.get("artist").unwrap(),
-            lyric.get("title").unwrap()
+            lyric.artist,
+            lyric.title
         );
-        return Some(lyric_id?.to_string());
+        return Some(lyric.id.clone());
     }
 
     None
