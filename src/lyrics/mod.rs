@@ -1,11 +1,23 @@
 pub mod lyrics {
     use regex::Regex;
-    use reqwest::{blocking, Client};
+    use reqwest::{Client, blocking};
     use serde_json::Value;
     use std::collections::BTreeMap;
-    use std::thread;
+    use std::fmt::Display;
+    use std::{thread, u64};
     use std::time::{Duration, Instant};
+    use serde::{de, Deserialize, Deserializer};
 
+    #[derive(Debug, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct LyricResponse {
+        pub(crate) id: u64,
+        pub(crate) artist_name: String,
+        pub(crate) track_name: String,
+        pub(crate) synced_lyrics: String,
+    }
+
+    #[derive(Debug)]
     pub struct Lyric {
         pub(crate) id: String,
         pub(crate) artist: String,
@@ -13,9 +25,11 @@ pub mod lyrics {
         pub(crate) synced_lyrics: String,
     }
 
+
     pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, Box<dyn std::error::Error>> {
+
         let client = Client::new(); // Create a new HTTP client
-        let mut lyrics = Vec::new(); // Initialize a vector to store videos
+        // let mut lyrics = Vec::new(); // Initialize a vector to store videos
         let base_url = "https://lrclib.net/api/search";
         let url = format!("{}?q={}", base_url, query);
 
@@ -34,27 +48,28 @@ pub mod lyrics {
 
         let json: Vec<Value> = response.json().await?; // Parse the response body as JSON array
 
-        // Extract lyric objs and add to the vector
-        for item in json {
-            // Get other fields
-            let id = item.get("id").and_then(|v| v.as_u64()).map(|id| id.to_string());
-            let synced_lyrics = item.get("syncedLyrics").and_then(|v| v.as_str());
-            let artist = item.get("artistName").and_then(|v| v.as_str());
-            let title = item.get("trackName").and_then(|v| v.as_str());
-
-            if let (Some(synced_lyrics), Some(id), Some(artist), Some(title)) =
-                (synced_lyrics, id, artist, title)
-            {
-                if !synced_lyrics.is_empty() {
-                    lyrics.push(Lyric {
-                        id: id.to_string(),
-                        artist: artist.to_string(),
-                        title: title.to_string(),
-                        synced_lyrics: synced_lyrics.to_string(),
-                    });
+        // Do this idiomatic idiomat.
+        let lyrics = json
+            .iter()
+            .cloned()
+            .filter_map(|v| {
+                match serde_json::from_value::<LyricResponse>(v) {
+                    Ok(lyric) => {
+                        Some(lyric)
+                    },
+                    Err(e) => {
+                        println!("Failed to parse lyric: {}", e);
+                        None
+                    }
                 }
-            }
-        }
+            })
+            .map(|l| Lyric {
+                id: l.id.to_string(),
+                artist: l.artist_name,
+                title: l.track_name,
+                synced_lyrics: l.synced_lyrics,
+            })
+            .collect();
 
         Ok(lyrics)
     }

@@ -51,9 +51,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }).await?;
 
     // Get the lyrics for the query:
-    let lyrs = lyrics::lyrics::search_lyrics(query_base.as_str()).await;
-    if lyrs.is_err() {
-        println!("We found your song, but had a problem finding the lyrics: {}", lyrs.err().unwrap());
+    let lyrs = lyrics::lyrics::search_lyrics(query_base.as_str()).await?;
+    // if lyrs.is_err() {
+    //     println!("We found your song, but had a problem finding the lyrics: {}", lyrs.err().unwrap());
+    //     exit(1);
+    // }
+
+    if lyrs.is_empty() {
+        println!("No lyrics found for this song.");
         exit(1);
     }
 
@@ -61,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Show options for the lyrics:
     let mut lyr_opts: Vec<CLIOption> = Vec::new();
-    for lyr in lyrs? {
+    for lyr in lyrs {
         let opt = CLIOption {
             artist: Some(lyr.artist),
             id: lyr.id,
