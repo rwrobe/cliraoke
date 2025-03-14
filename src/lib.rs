@@ -6,9 +6,11 @@ use serde_json::Value;
 use std::error::Error;
 use std::io::BufReader;
 use std::process::{Command, exit};
-use std::{io::Cursor, thread, time::Duration};
+use std::{io::Cursor, thread, time::{Duration, Instant}};
 use tokio::runtime::Runtime;
 use yt_dlp::Youtube;
+use std::collections::BTreeMap;
+use regex::Regex;
 
 pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::error::Error>> {
     match fetch_videos(api_key, query).await {
@@ -21,26 +23,41 @@ pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::e
             }
 
             // Present options is a blocking operation, use spawn_blocking
-            let video_id = tokio::task::spawn_blocking(move || {
-                present_options(videos)
-            }).await?;
+            let video_id = tokio::task::spawn_blocking(move || present_yt_options(videos)).await?;
 
             if let Some(video_id) = video_id {
                 // Get YouTube audio URL is also blocking
                 let video_id_owned = video_id.clone(); // Clone to create an owned value
-                let audio_url = tokio::task::spawn_blocking(move || {
-                    get_youtube_audio_url(&video_id_owned)
-                }).await?;
+                let audio_url =
+                    tokio::task::spawn_blocking(move || get_youtube_audio_url(&video_id_owned))
+                        .await?;
 
                 if let Some(audio_url) = audio_url {
-                    play_audio(&audio_url);
+                    // Fetch lyrics in a separate thread
+                    let lyrics_handle = tokio::task::spawn_blocking(move || {
+                        fetch_lyrics()
+                    });
 
-                    // Wait for a bit to allow the audio to start playing
-                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    // Start playing audio
+                    let play_handle = std::thread::spawn(move || {
+                        play_audio(&audio_url);
+                    });
 
-                    // Keep the main thread alive until user interrupts
-                    println!("Press Ctrl+C to stop playback.");
-                    tokio::signal::ctrl_c().await?;
+                    // Wait for lyrics to be retrieved
+                    if let Ok(Some(lyrics_map)) = lyrics_handle.await {
+                        // Display lyrics in sync with playback
+                        display_synced_lyrics(&lyrics_map);
+                    } else {
+                        println!("No lyrics available for this track.");
+                    }
+
+                    // Wait for audio playback to finish
+                    if let Err(e) = tokio::signal::ctrl_c().await {
+                        println!("Error waiting for Ctrl+C: {}", e);
+                    }
+
+                    // Audio playback has stopped
+                    println!("Playback ended");
                 }
             }
 
@@ -57,39 +74,6 @@ pub(crate) async fn run(api_key: &str, query: &str) -> Result<(), Box<dyn std::e
             Err("Error fetching videos".into())
         }
     }
-}
-
-fn present_options(videos: Vec<Value>) -> Option<String> {
-    println!("Pick your song (check the URL if you're not sure):");
-
-    for (index, video) in videos.iter().enumerate() {
-        let snippet = &video["snippet"];
-
-        println!(
-            "{}. Title: {}; URL: https://www.youtube.com/watch?v={}",
-            index + 1,
-            snippet["title"],
-            video["id"]["videoId"]
-        );
-    }
-
-    let mut input = String::new();
-
-    std::io::stdin().read_line(&mut input).unwrap();
-
-    if let Ok(index) = input.trim().parse::<usize>() {
-        let video = &videos[index - 1];
-        let video_id = video["id"]["videoId"].as_str().unwrap().to_string();
-        let video_url = format!("https://www.youtube.com/watch?v={}", video_id);
-
-        println!(
-            "Rock on. Playing: {} ({})",
-            video["snippet"]["title"], video_url
-        );
-        return Some(video_id);
-    }
-
-    None
 }
 
 async fn fetch_videos(
@@ -140,6 +124,38 @@ async fn fetch_videos(
 
     Ok(videos) // Return the list of videos
 }
+fn present_yt_options(videos: Vec<Value>) -> Option<String> {
+    println!("Pick your song (check the URL if you're not sure):");
+
+    for (index, video) in videos.iter().enumerate() {
+        let snippet = &video["snippet"];
+
+        println!(
+            "{}. Title: {}; URL: https://www.youtube.com/watch?v={}",
+            index + 1,
+            snippet["title"],
+            video["id"]["videoId"].as_str().unwrap()
+        );
+    }
+
+    let mut input = String::new();
+
+    std::io::stdin().read_line(&mut input).unwrap();
+
+    if let Ok(index) = input.trim().parse::<usize>() {
+        let video = &videos[index - 1];
+        let video_id = video["id"]["videoId"].as_str().unwrap().to_string();
+        let video_url = format!("https://www.youtube.com/watch?v={}", video_id);
+
+        println!(
+            "Rock on. Playing: {} ({})",
+            video["snippet"]["title"], video_url
+        );
+        return Some(video_id);
+    }
+
+    None
+}
 
 // Get the direct audio stream URL using yt-dlp
 fn get_youtube_audio_url(video_id: &str) -> Option<String> {
@@ -148,11 +164,13 @@ fn get_youtube_audio_url(video_id: &str) -> Option<String> {
 
     let output = Command::new("yt-dlp")
         .args([
-            "-f", "bestaudio",
+            "-f",
+            "bestaudio",
             "--get-url",
             "--extract-audio",
-            "--audio-format", "mp3",
-            &url
+            "--audio-format",
+            "mp3",
+            &url,
         ])
         .output()
         .expect("Failed to execute yt-dlp");
@@ -173,11 +191,16 @@ fn get_youtube_audio_url(video_id: &str) -> Option<String> {
             .expect("Failed to execute yt-dlp");
 
         if retry_output.status.success() {
-            let audio_url = String::from_utf8_lossy(&retry_output.stdout).trim().to_string();
+            let audio_url = String::from_utf8_lossy(&retry_output.stdout)
+                .trim()
+                .to_string();
             println!("Retry successful. Got audio URL: {}", audio_url);
             Some(audio_url)
         } else {
-            eprintln!("Retry also failed: {}", String::from_utf8_lossy(&retry_output.stderr));
+            eprintln!(
+                "Retry also failed: {}",
+                String::from_utf8_lossy(&retry_output.stderr)
+            );
             None
         }
     }
@@ -201,35 +224,80 @@ fn play_audio(url: &str) {
 }
 
 // Fetch lyrics from Musixmatch API
-fn fetch_lyrics(api_key: &str) -> Option<String> {
-    let url = format!(
-        "https://api.musixmatch.com/ws/1.1/track.search?q_track=Thieves%20in%20the%20Night&q_artist=Black%20Star&apikey={}",
-        api_key
-    );
+fn fetch_lyrics() -> Option<std::collections::BTreeMap<u64, String>> {
+    let url = format!("https://lrclib.net/api/get/{}", 17533182);
 
     let response = blocking::get(&url).ok()?.json::<Value>().ok()?;
-    let track_list = response["message"]["body"]["track_list"].as_array()?;
+    let synced_raw = response["message"]["body"]["syncedLyrics"].as_str()?;
+    // Create regex to extract timestamp and text
+    let re = Regex::new(r"^\[(\d+):(\d+)\.(\d+)\]\s*(.*)$").ok()?;
 
-    if !track_list.is_empty() {
-        let track_id = track_list[0]["track"]["track_id"].as_i64()?;
-        let lyrics_url = format!(
-            "https://api.musixmatch.com/ws/1.1/track.lyrics.get?track_id={}&apikey={}",
-            track_id, api_key
-        );
+    // Create a map to store timestamp -> lyric pairs
+    let mut time_to_lyric = BTreeMap::new();
 
-        let lyrics_response = blocking::get(&lyrics_url).ok()?.json::<Value>().ok()?;
-        return lyrics_response["message"]["body"]["lyrics"]["lyrics_body"]
-            .as_str()
-            .map(|s| s.to_string());
+    // Process each line
+    for line in synced_raw.lines() {
+        if let Some(captures) = re.captures(line) {
+            // Convert timestamp parts to milliseconds as u64
+            let minutes: u64 = captures[1].parse().ok()?;
+            let seconds: u64 = captures[2].parse().ok()?;
+            let milliseconds: u64 = captures[3].parse().ok()?;
+
+            // Calculate total milliseconds
+            let timestamp_ms = minutes * 60_000 + seconds * 1000 + milliseconds;
+
+            // Get the lyric text
+            let lyric_text = captures[4].to_string();
+
+            // Store in map
+            time_to_lyric.insert(timestamp_ms, lyric_text);
+        }
     }
-    None
+
+    Some(time_to_lyric)
 }
 
-// Display lyrics in sync
-fn display_lyrics(lyrics: &str) {
-    let lines: Vec<&str> = lyrics.lines().collect();
-    for (i, line) in lines.iter().enumerate() {
-        thread::sleep(Duration::from_secs(i as u64 * 5)); // Adjust timing
-        println!("{}", line);
+
+// Display lyrics in sync with music playback
+fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
+    println!("Starting synchronized lyrics display");
+
+    // Start a timer to track playback time
+    let start_time = Instant::now();
+
+    // Create a clone of the lyrics map that we can iterate through
+    let timestamps: Vec<u64> = lyrics_map.keys().cloned().collect();
+
+    // Track which lyrics we've already displayed
+    let mut displayed_up_to_index = 0;
+
+    // Set up a clean display area for lyrics
+    println!("\n\n\n");  // Add some space before lyrics start
+    println!("----- LYRICS -----");
+
+    // Continue until we've displayed all lyrics
+    while displayed_up_to_index < timestamps.len() {
+        // Get current playback time in milliseconds
+        let current_time_ms = start_time.elapsed().as_millis() as u64;
+
+        // Check if we need to display new lyrics
+        while displayed_up_to_index < timestamps.len() && current_time_ms >= timestamps[displayed_up_to_index] {
+            let timestamp = timestamps[displayed_up_to_index];
+            if let Some(lyric) = lyrics_map.get(&timestamp) {
+                // Calculate minutes and seconds for display
+                let minutes = timestamp / 60000;
+                let seconds = (timestamp % 60000) / 1000;
+                let millis = timestamp % 1000;
+
+                // Print timestamp and lyric
+                println!("[{:02}:{:02}.{:03}] {}", minutes, seconds, millis, lyric);
+            }
+            displayed_up_to_index += 1;
+        }
+
+        // Sleep briefly to avoid consuming too much CPU
+        thread::sleep(Duration::from_millis(10));
     }
+
+    println!("----- END OF LYRICS -----");
 }
