@@ -6,6 +6,7 @@ use rodio::{Decoder, OutputStream, Sink};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::fmt::format;
 use std::io::{self, BufReader, Write};
 use std::process::{Command, exit};
 use std::sync::{Arc, Mutex};
@@ -14,7 +15,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use std::fmt::format;
 use tokio::runtime::Runtime;
 use yt_dlp::Youtube;
 
@@ -29,69 +29,80 @@ pub(crate) async fn run(api_key: &str) -> Result<(), Box<dyn std::error::Error>>
 
     print!("Straight banger. OK, now select the lyrics to use:");
     match search_lyrics(&query).await {
-        Ok(_) => {}
-        Err(_) => {}
-    }
-
-    match fetch_videos(api_key, query.as_str()).await {
-        Ok(videos) => {
-            println!("Fetched {} videos", videos.len());
-
-            if videos.is_empty() {
-                println!("No videos found");
-                exit(1)
+        Ok(options) => {
+            if options.is_empty() {
+                println!("No lyrics found");
+                exit(1);
             }
 
-            // Present options is a blocking operation, use spawn_blocking
-            let video_id = tokio::task::spawn_blocking(move || present_yt_options(videos)).await?;
+            let lyric_uid =
+                tokio::task::spawn_blocking(move || present_yt_options(options)).await?;
+            match fetch_videos(api_key, query.as_str()).await {
+                Ok(videos) => {
+                    println!("Fetched {} videos", videos.len());
 
-            if let Some(video_id) = video_id {
-                // Get YouTube audio URL is also blocking
-                let video_id_owned = video_id.clone(); // Clone to create an owned value
-                let audio_url =
-                    tokio::task::spawn_blocking(move || get_youtube_audio_url(&video_id_owned))
+                    if videos.is_empty() {
+                        println!("No videos found");
+                        exit(1)
+                    }
+
+                    // Present options is a blocking operation, use spawn_blocking
+                    let video_id =
+                        tokio::task::spawn_blocking(move || present_yt_options(videos)).await?;
+
+                    if let Some(video_id) = video_id {
+                        // Get YouTube audio URL is also blocking
+                        let video_id_owned = video_id.clone(); // Clone to create an owned value
+                        let audio_url = tokio::task::spawn_blocking(move || {
+                            get_youtube_audio_url(&video_id_owned)
+                        })
                         .await?;
 
-                if let Some(audio_url) = audio_url {
-                    // Fetch lyrics in a separate thread
-                    let lyrics_handle = tokio::task::spawn_blocking(move || fetch_lyrics());
+                        if let Some(audio_url) = audio_url {
+                            // Fetch lyrics in a separate thread
+                            let lyrics_handle = tokio::task::spawn_blocking(move || {
+                                fetch_lyrics(lyric_uid.unwrap().as_str())
+                            });
 
-                    // Start playing audio
-                    let play_handle = std::thread::spawn(move || {
-                        play_audio(&audio_url);
-                    });
+                            // Start playing audio
+                            let play_handle = std::thread::spawn(move || {
+                                play_audio(&audio_url);
+                            });
 
-                    // Wait for lyrics to be retrieved
-                    if let Ok(Some(lyrics_map)) = lyrics_handle.await {
-                        // Display lyrics in sync with playback
-                        display_synced_lyrics(&lyrics_map);
-                    } else {
-                        println!("No lyrics available for this track.");
+                            // Wait for lyrics to be retrieved
+                            if let Ok(Some(lyrics_map)) = lyrics_handle.await {
+                                // Display lyrics in sync with playback
+                                display_synced_lyrics(&lyrics_map);
+                            } else {
+                                println!("No lyrics available for this track.");
+                            }
+
+                            // Wait for audio playback to finish
+                            if let Err(e) = tokio::signal::ctrl_c().await {
+                                println!("Error waiting for Ctrl+C: {}", e);
+                            }
+
+                            // Audio playback has stopped
+                            println!("Playback ended");
+                        }
                     }
-
-                    // Wait for audio playback to finish
-                    if let Err(e) = tokio::signal::ctrl_c().await {
-                        println!("Error waiting for Ctrl+C: {}", e);
+                }
+                Err(e) => {
+                    println!("Error fetching videos: {}", e);
+                    if let Some(reqwest_err) = e.downcast_ref::<reqwest::Error>() {
+                        if let Some(status) = reqwest_err.status() {
+                            println!("HTTP Status {}", status);
+                        }
                     }
-
-                    // Audio playback has stopped
-                    println!("Playback ended");
                 }
             }
-
-            Ok(())
         }
         Err(e) => {
-            println!("Error fetching videos: {}", e);
-            if let Some(reqwest_err) = e.downcast_ref::<reqwest::Error>() {
-                if let Some(status) = reqwest_err.status() {
-                    println!("HTTP Status {}", status);
-                }
-            }
-
-            Err("Error fetching videos".into())
+            println!("Error fetching lyrics: {}", e);
         }
     }
+
+    Ok(())
 }
 
 fn get_user_input(msg: &str) -> String {
@@ -234,6 +245,37 @@ fn present_yt_options(videos: Vec<Value>) -> Option<String> {
     None
 }
 
+fn present_lyric_options(lyrics: Vec<Value>) -> Option<String> {
+    println!("Pick your song (check the URL if you're not sure):");
+
+    for (index, lyric) in lyrics.iter().enumerate() {
+        println!(
+            "{}. Artist: {}; Title: {}",
+            index + 1,
+            lyric.get("artist").unwrap(),
+            lyric.get("title").unwrap()
+        );
+    }
+
+    let mut input = String::new();
+
+    io::stdin().read_line(&mut input).unwrap();
+
+    if let Ok(index) = input.trim().parse::<usize>() {
+        let lyric = &lyrics[index - 1];
+        let lyric_id = lyric.get("id").unwrap().as_str();
+
+        println!(
+            "Rock on. Playing: {} ({})",
+            lyric.get("artist").unwrap(),
+            lyric.get("title").unwrap()
+        );
+        return Some(lyric_id?.to_string());
+    }
+
+    None
+}
+
 // Get the direct audio stream URL using yt-dlp
 fn get_youtube_audio_url(video_id: &str) -> Option<String> {
     let url = format!("https://www.youtube.com/watch?v={}", video_id);
@@ -323,8 +365,8 @@ fn play_audio(url: &str) {
 }
 
 // Fetch lyrics from Musixmatch API
-fn fetch_lyrics() -> Option<BTreeMap<u64, String>> {
-    let url = format!("https://lrclib.net/api/get/{}", 17533182);
+fn fetch_lyrics(id: &str) -> Option<BTreeMap<u64, String>> {
+    let url = format!("https://lrclib.net/api/get/{}", id);
     println!("Fetching lyrics from {}", url);
 
     let response = blocking::get(&url).ok()?;
