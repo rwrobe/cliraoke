@@ -9,7 +9,6 @@ pub(crate) mod audio {
         pub id: String,
         pub title: String,
         pub artist: String,
-        pub url: String,
     }
 
     pub async fn fetch_videos(
@@ -54,7 +53,6 @@ pub(crate) mod audio {
                         id: id.to_string(),
                         title: title.to_string(),
                         artist: artist.to_string(),
-                        url: format!("https://www.youtube.com/watch?v={}", id),
                     });
                 }
             }

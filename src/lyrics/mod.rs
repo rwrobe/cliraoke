@@ -1,18 +1,18 @@
 use std::collections::BTreeMap;
 
 pub mod lyrics {
+    use regex::Regex;
+    use reqwest::{Client, blocking};
+    use serde_json::Value;
     use std::collections::BTreeMap;
     use std::thread;
     use std::time::{Duration, Instant};
-    use regex::Regex;
-    use reqwest::{blocking, Client};
-    use serde_json::Value;
 
     pub struct Lyric {
-        id: String,
+        pub(crate) id: String,
         pub(crate) artist: String,
         pub(crate) title: String,
-        synced_lyrics: String,
+        pub(crate) synced_lyrics: String,
     }
 
     pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, Box<dyn std::error::Error>> {
@@ -38,30 +38,18 @@ pub mod lyrics {
 
         // Extract lyric objs and add to the vector
         for item in json {
-            // Get id as a string regardless of whether it's a number or string in JSON
-            let id = match item.get("id") {
-                Some(v) => {
-                    if v.is_string() {
-                        v.as_str().map(|s| s.to_string())
-                    } else if v.is_number() {
-                        Some(v.to_string())
-                    } else {
-                        None
-                    }
-                }
-                None => None,
-            };
-
             // Get other fields
+            let id = item.get("id").and_then(|v| v.as_str());
             let synced_lyrics = item.get("syncedLyrics").and_then(|v| v.as_str());
             let artist = item.get("artistName").and_then(|v| v.as_str());
             let title = item.get("trackName").and_then(|v| v.as_str());
 
             if let (Some(synced_lyrics), Some(id), Some(artist), Some(title)) =
-                (synced_lyrics, id, artist, title) {
+                (synced_lyrics, id, artist, title)
+            {
                 if !synced_lyrics.is_empty() {
                     lyrics.push(Lyric {
-                        id,
+                        id: id.to_string(),
                         artist: artist.to_string(),
                         title: title.to_string(),
                         synced_lyrics: synced_lyrics.to_string(),
@@ -73,7 +61,7 @@ pub mod lyrics {
         Ok(lyrics)
     }
 
-    pub fn fetch_lyrics(id: u64) -> Option<BTreeMap<u64, String>> {
+    pub fn fetch_lyrics(id: &str) -> Option<BTreeMap<u64, String>> {
         let url = format!("https://lrclib.net/api/get/{}", id);
         println!("Fetching lyrics from {}", url);
 
@@ -189,5 +177,4 @@ pub mod lyrics {
 
         println!("----- END OF LYRICS -----");
     }
-
 }

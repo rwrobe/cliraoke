@@ -7,8 +7,7 @@ pub(crate) mod cli {
     pub struct CLIOption {
         pub(crate) title: String,
         pub(crate) artist: Option<String>,
-        pub(crate) url: Option<String>,
-        pub(crate) id: Option<u64>, // TODO: can combine lyric and YT IDs as strings.
+        pub(crate) id: String,
     }
 
     pub fn get_user_input() -> String {
@@ -33,16 +32,13 @@ pub(crate) mod cli {
 
             if let Some(artist) = &option.artist {
                 artist_str = format!(" by {}", artist);
-            } else {
-                url_str = format!(" ({})", option.url.as_ref().unwrap());
             }
 
             println!(
-                "{}. {}{}{}", // Damn Rust for not letting me pass a string template.
+                "{}. {}{}", // Damn Rust for not letting me pass a string template.
                 index + 1,
                 option.title,
-                option.artist.as_ref().unwrap_or(&String::new()),
-                option.url.as_ref().unwrap_or(&String::new())
+                artist_str,
             );
         }
 

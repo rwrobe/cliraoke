@@ -16,7 +16,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = env::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
 
     // Get user query.
-    println!("Welcome to CLIraoke. Please type a song or artist name: ");
+    println!("Welcome to CLIraoke.");
+    println!("Please type a song or artist name: ");
     let query_base = cli::cli::get_user_input();
 
     // TODO: Run lyric and video fetching concurrently.
@@ -39,9 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for video in videos {
         let opt = CLIOption {
             artist: Some(video.artist),
-            id: None,
+            id: video.id,
             title: video.title,
-            url: Some(video.url),
         };
         vid_opts.push(opt);
     }
@@ -57,16 +57,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(1);
     }
 
-    print!("What a banger. OK, now select the lyrics to use: ");
+    println!("What a banger. OK, now select the lyrics to use: ");
 
     // Show options for the lyrics:
     let mut lyr_opts: Vec<CLIOption> = Vec::new();
     for lyr in lyrs? {
         let opt = CLIOption {
             artist: Some(lyr.artist),
-            id: None,
+            id: lyr.id,
             title: lyr.title,
-            url: None,
         };
         lyr_opts.push(opt);
     }
@@ -77,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let lyrics_thread = tokio::task::spawn_blocking(move || {
         if let Some(opt) = lyric_opt {
-            lyrics::lyrics::fetch_lyrics(opt.id.unwrap())
+            lyrics::lyrics::fetch_lyrics(opt.id.as_str())
         } else {
             None
         }
@@ -86,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get the audio URL for the video:
     let mut audio_url: Option<String> = None;
     if let Some(video_opt) = video_opt {
-        audio_url = tokio::task::spawn_blocking(move || audio::audio::get_youtube_audio_url(video_opt.url.unwrap().as_str())).await?;
+        audio_url = tokio::task::spawn_blocking(move || audio::audio::get_youtube_audio_url(video_opt.id.as_str())).await?;
     }
 
     if audio_url.is_none() {
