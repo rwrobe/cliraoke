@@ -1,17 +1,20 @@
-use std::collections::BTreeMap;
-use std::io;
-use std::iter::Map;
 use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::widgets::ListState;
 use ratatui::{
+    DefaultTerminal, Frame,
     buffer::Buffer,
     layout::Rect,
-    style::Stylize,
+    style::{
+        palette::tailwind::{SLATE},
+        Color, Stylize,
+    },
+    symbols,
     symbols::border,
     text::{Line, Text},
     widgets::{Block, Paragraph, Widget},
-    DefaultTerminal, Frame,
 };
+use std::io;
 
 #[derive(Debug, Default, PartialEq)]
 pub enum WidgetState {
@@ -25,9 +28,30 @@ pub enum WidgetState {
 pub struct App {
     pub exit: bool,
     pub lyric: String,
-    pub queue: BTreeMap<String, BTreeMap<u64, String>>,
+    pub queue: SongQueue,
     pub time: u64, // Time in milliseconds.
     pub widget_state: WidgetState,
+}
+
+#[derive(Debug, Default)]
+pub struct SongQueue {
+    pub songs: Vec<Song>,
+    pub stat: ListState,
+}
+
+#[derive(Debug, Clone)]
+pub struct Song {
+    pub yt_ud: String,
+    pub lyric_ud: u64,
+    pub title: String,
+    pub artist: String,
+    pub lyrics: Vec<Lyric>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Lyric {
+    pub timestamp: u64,
+    pub text: String,
 }
 
 impl App {
@@ -37,8 +61,6 @@ impl App {
         yt_api_key: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         while !self.exit {
-            self.queue = BTreeMap::new();
-            self.queue.insert("1. Test Song".to_string(), BTreeMap::new());
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -64,6 +86,7 @@ impl App {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => self.open_queue(),
+            KeyCode::Tab => self.search(),
             KeyCode::Right => self.advance_lyrics(),
             KeyCode::Left => self.retreat_lyrics(),
             _ => {}
@@ -72,16 +95,24 @@ impl App {
 
     // todo -- "advancing the lyrics" will mean moving the current time forward
     fn advance_lyrics(&mut self) {
-        //todo
+        self.time += 500;
     }
 
     // todo -- "retreating the lyrics" will mean moving the current time backward
     fn retreat_lyrics(&mut self) {
-        //todo
+        self.time -= 500;
     }
 
     fn open_queue(&mut self) {
+        if self.widget_state == WidgetState::Queue {
+            self.widget_state = WidgetState::Lyrics;
+            return;
+        }
         self.widget_state = WidgetState::Queue;
+    }
+
+    fn search(&mut self) {
+        self.widget_state = WidgetState::Search;
     }
 
     fn exit(&mut self) {
@@ -92,9 +123,10 @@ impl App {
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
-        Self: Sized
+        Self: Sized,
     {
         let title = Line::from(" CLIraoke ".bold());
+        let time = Line::from(format!("Time: {}", self.time).bold());
         let instructions = Line::from(vec![
             " Move Lyrics Forward ".into(),
             "<Left>".blue().bold(),
@@ -102,6 +134,8 @@ impl Widget for &App {
             "<Right>".blue().bold(),
             " Open Song Queue ".into(),
             "<Esc>".blue().bold(),
+            " Search for a Song ".into(),
+            "<Tab>".blue().bold(),
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
@@ -110,25 +144,61 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
 
-        let lyric = Text::from(vec![Line::from(vec![
-            self.lyric.to_string().yellow(),
-        ])]);
+        let lyric = Text::from(vec![Line::from(vec![self.lyric.to_string().yellow()])]);
 
-        if self.widget_state == WidgetState::Queue {
-            let mut lines = vec![Line::from("Queue".bold())];
-            for (queue_title, nested_map) in self.queue.iter() {
-                lines.push(Line::from(queue_title.to_string().bold()));
+        match self.widget_state {
+            WidgetState::Lyrics => {
+                let lyric = Text::from(vec![Line::from(vec![self.lyric.to_string().yellow()])]);
+                Paragraph::new(lyric)
+                    .centered()
+                    .block(Block::new())
+                    .render(area, buf);
             }
-            let queue = Text::from(lines);
-            Paragraph::new(queue)
-                .centered()
-                .block(block)
-                .render(area, buf);
-        } else {
-            Paragraph::new(lyric)
-                .centered()
-                .block(block)
-                .render(area, buf);
+            WidgetState::Queue => {
+                let mut lines = vec![Line::from("Queue".bold())];
+                let block = Block::new()
+                    .title(Line::from("Queue".bold()).centered())
+                    .border_set(border::THICK)
+                    .border_set(symbols::border::EMPTY);
+                let song_list: Vec<Song> = self
+                    .queue
+                    .songs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, song)| {
+                        let color = alternate_colors(i);
+                        Song {
+                            yt_ud: song.yt_ud.clone(),
+                            lyric_ud: song.lyric_ud,
+                            title: song.title.clone(),
+                            artist: song.artist.clone(),
+                            lyrics: song.lyrics.clone(),
+                        }
+                    })
+                    .collect();
+
+                Paragraph::new("Use ↓↑ to move, ← to unselect, → to change status, g/G to go top/bottom.")
+                    .centered()
+                    .render(area, buf);
+            }
+            WidgetState::Search => {
+                let search = Text::from(vec![Line::from("Search".bold())]);
+                Paragraph::new(search)
+                    .centered()
+                    .block(block)
+                    .render(area, buf);
+            }
         }
+    }
+}
+
+const NORMAL_ROW_BG: Color = SLATE.c950;
+const ALT_ROW_BG_COLOR: Color = SLATE.c900;
+
+const fn alternate_colors(i: usize) -> Color {
+    if i % 2 == 0 {
+        NORMAL_ROW_BG
+    } else {
+        ALT_ROW_BG_COLOR
     }
 }
