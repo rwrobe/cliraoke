@@ -24,7 +24,7 @@ pub struct LyricResponse {
     pub(crate) track_name: String,
     pub(crate) artist_name: String,
     _album_name: String,
-    _duration: i64,
+    _duration: f64,
     _instrumental: bool,
     _plain_lyrics: Option<String>,
     pub(crate) synced_lyrics: Option<String>,
