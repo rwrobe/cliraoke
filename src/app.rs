@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
 use std::io;
-
+use std::iter::Map;
+use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
@@ -11,11 +13,21 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
+#[derive(Debug, Default, PartialEq)]
+pub enum WidgetState {
+    Lyrics,
+    Queue,
+    #[default]
+    Search,
+}
+
 #[derive(Debug, Default)]
 pub struct App {
-    pub time: u64, // Time in milliseconds.
-    pub lyric: String,
     pub exit: bool,
+    pub lyric: String,
+    pub queue: BTreeMap<String, BTreeMap<u64, String>>,
+    pub time: u64, // Time in milliseconds.
+    pub widget_state: WidgetState,
 }
 
 impl App {
@@ -25,6 +37,8 @@ impl App {
         yt_api_key: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         while !self.exit {
+            self.queue = BTreeMap::new();
+            self.queue.insert("1. Test Song".to_string(), BTreeMap::new());
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
@@ -49,7 +63,7 @@ impl App {
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
-            KeyCode::Enter => self.open_queue(),
+            KeyCode::Esc => self.open_queue(),
             KeyCode::Right => self.advance_lyrics(),
             KeyCode::Left => self.retreat_lyrics(),
             _ => {}
@@ -67,7 +81,7 @@ impl App {
     }
 
     fn open_queue(&mut self) {
-        //todo
+        self.widget_state = WidgetState::Queue;
     }
 
     fn exit(&mut self) {
@@ -80,14 +94,14 @@ impl Widget for &App {
     where
         Self: Sized
     {
-        let title = Line::from("CLIraoke".bold());
+        let title = Line::from(" CLIraoke ".bold());
         let instructions = Line::from(vec![
             " Move Lyrics Forward ".into(),
             "<Left>".blue().bold(),
             " Move Lyrics Backward ".into(),
             "<Right>".blue().bold(),
             " Open Song Queue ".into(),
-            "<Space>".blue().bold(),
+            "<Esc>".blue().bold(),
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
@@ -96,13 +110,25 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
 
-        let counter_text = Text::from(vec![Line::from(vec![
+        let lyric = Text::from(vec![Line::from(vec![
             self.lyric.to_string().yellow(),
         ])]);
 
-        Paragraph::new(counter_text)
-            .centered()
-            .block(block)
-            .render(area, buf);
+        if self.widget_state == WidgetState::Queue {
+            let mut lines = vec![Line::from("Queue".bold())];
+            for (queue_title, nested_map) in self.queue.iter() {
+                lines.push(Line::from(queue_title.to_string().bold()));
+            }
+            let queue = Text::from(lines);
+            Paragraph::new(queue)
+                .centered()
+                .block(block)
+                .render(area, buf);
+        } else {
+            Paragraph::new(lyric)
+                .centered()
+                .block(block)
+                .render(area, buf);
+        }
     }
 }
