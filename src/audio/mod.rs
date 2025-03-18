@@ -1,15 +1,26 @@
-pub(crate) mod audio {
-    use reqwest::Client;
-    use serde_json::Value;
-    use std::process::Command;
-    use anyhow::anyhow;
+use anyhow::anyhow;
+use reqwest::Client;
+use serde_json::Value;
+use std::process::Command;
 
-    const SEARCH_SUFFIX: &str = "karaoke version";
+#[derive(Debug)]
+pub struct Audio {
+    pub yt_api_key: String,
+}
 
-    pub struct Video {
-        pub id: String,
-        pub title: String,
-        pub artist: String,
+pub struct Video {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+}
+
+const SEARCH_SUFFIX: &str = "karaoke version";
+
+impl Audio {
+    pub fn new(yt_api_key: &str) -> Audio {
+        Audio {
+            yt_api_key: yt_api_key.to_owned(),
+        }
     }
 
     pub async fn fetch_videos(
