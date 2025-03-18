@@ -24,7 +24,7 @@ impl Audio {
     }
 
     pub async fn fetch_videos(
-        api_key: &str,
+        &self,
         query: &str,
     ) -> anyhow::Result<Vec<Video>> {
         let client = Client::new(); // Create a new HTTP client
@@ -34,7 +34,7 @@ impl Audio {
         // Build the API request URL
         let url = format!(
             "https://www.googleapis.com/youtube/v3/search?key={}&q={}&part=snippet,id&order=relevance&maxResults={}&type=video&pageToken={}",
-            api_key,
+            self.yt_api_key,
             format!("{} {}", query, SEARCH_SUFFIX),
             max_results,
             page_token

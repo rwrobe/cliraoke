@@ -1,6 +1,5 @@
 use crate::audio::Audio;
 use color_eyre::owo_colors::OwoColorize;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::widgets::ListState;
 use ratatui::{
     buffer::Buffer,
@@ -88,7 +87,7 @@ impl App {
         }
     }
 
-    pub async fn search(&mut self) {
+    pub async fn search(&mut self) -> Result<(Vec<lyrics::Lyric>, Vec<audio::Video>), anyhow::Error> {
         let query = self.query.clone();
 
         // Fetch the videos using the audio client.
@@ -102,77 +101,14 @@ impl App {
             exit(1);
         }
 
-        let videos = videos?;
-        if videos.is_empty() {
-            println!("No videos found");
-            exit(1);
-        }
-
-
-
-        // TODO: Handle this in UI.
-        // Get the video id from the user:
-        // let mut vid_opts: Vec<CLIOption> = Vec::new();
-        // for video in videos {
-        //     let opt = CLIOption {
-        //         artist: Some(video.artist),
-        //         id: video.id,
-        //         title: video.title,
-        //     };
-        //     vid_opts.push(opt);
-        // }
-        //let video_opt = tokio::task::spawn_blocking(move || cli::present_options(vid_opts)).await?;
-
         // Get the lyrics for the query:
-        let lyrs = lyrics::search_lyrics(self.query.as_str()).await?;
-        // if lyrs.is_err() {
-        //     println!("We found your song, but had a problem finding the lyrics: {}", lyrs.err().unwrap());
-        //     exit(1);
-        // }
-
-        if lyrs.is_empty() {
-            println!("No lyrics found for this song.");
+        let lyrs = lyrics::search_lyrics(self.query.as_str()).await;
+        if lyrs.is_err() {
+            println!("We found your song, but had a problem finding the lyrics: {}", lyrs.err().unwrap());
             exit(1);
         }
 
-        // TODO: Handle this in UI.
-
-        // Show options for the lyrics:
-        // let mut lyr_opts: Vec<CLIOption> = Vec::new();
-        // for lyr in lyrs {
-        //     let opt = CLIOption {
-        //         artist: Some(lyr.artist),
-        //         id: lyr.id,
-        //         title: lyr.title,
-        //     };
-        //     lyr_opts.push(opt);
-        // }
-
-        //let lyric_opt =  tokio::task::spawn_blocking(move || cli::cli::present_options(lyr_opts)).await?;
-
-        // let lyrics_thread = tokio::task::spawn_blocking(move || {
-        //     if let Some(opt) = lyric_opt {
-        //         lyrics::fetch_lyrics(opt.id.as_str())
-        //     } else {
-        //         None
-        //     }
-        // });
-
-        lyrics::fetch_lyrics(opt.id.as_str())
-
-        // Get the audio URL for the video:
-        let mut audio_url: Option<String> = None;
-        if let Some(video_opt) = video_opt {
-            audio_url = tokio::task::spawn_blocking(move || {
-                audio::audio::get_youtube_audio_url(video_opt.id.as_str())
-            })
-                .await?;
-        }
-
-        if audio_url.is_none() {
-            println!("Error getting audio URL");
-            exit(1);
-        }
+        Ok((lyrs?, videos?))
     }
 
     pub fn add_to_queue(&mut self, song: Song) {
