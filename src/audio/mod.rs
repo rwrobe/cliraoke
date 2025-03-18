@@ -8,7 +8,7 @@ pub struct Audio {
     pub yt_api_key: String,
 }
 
-pub struct Video {
+pub struct OptionResponse {
     pub id: String,
     pub title: String,
     pub artist: String,
@@ -26,7 +26,7 @@ impl Audio {
     pub async fn fetch_videos(
         &self,
         query: &str,
-    ) -> anyhow::Result<Vec<Video>> {
+    ) -> anyhow::Result<Vec<OptionResponse>> {
         let client = Client::new(); // Create a new HTTP client
         let page_token = String::new(); // Token to handle pagination
         let max_results = 5; // Maximum number of results per page
@@ -55,7 +55,6 @@ impl Audio {
 
         let json: Value = response.json().await?; // Parse the response body as JSON
 
-
         #[derive(Debug, serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct YtId {
@@ -74,12 +73,12 @@ impl Audio {
         }
         #[derive(Debug, serde::Deserialize)]
         struct YoutubeResponse {
-            items: Vec<YoutubeItem>
+            items: Vec<YoutubeItem>,
         }
 
         let json_response = serde_json::from_value::<YoutubeResponse>(json)?;
         let videos: Vec<_> = json_response.items.iter().map(|item| {
-            Video {
+            OptionResponse {
                 id: item.id.video_id.to_owned(),
                 title: item.snippet.title.to_owned(),
                 artist: item.snippet.channel_title.to_owned(),
@@ -109,30 +108,31 @@ impl Audio {
         if output.status.success() {
             let audio_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
             Some(audio_url)
+
+        }
+
+        let error = String::from_utf8_lossy(&output.stderr);
+        eprintln!("yt-dlp failed: {}", error);
+
+        // Try a different approach - maybe without audio format specification
+        println!("Retrying with simplified parameters...");
+        let retry_output = Command::new("yt-dlp")
+            .args(["-f", "bestaudio", "--get-url", &url])
+            .output()
+            .expect("Failed to execute yt-dlp");
+
+        if retry_output.status.success() {
+            let audio_url = String::from_utf8_lossy(&retry_output.stdout)
+                .trim()
+                .to_string();
+            println!("Retry successful. Got audio URL: {}", audio_url);
+            Some(audio_url)
         } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            eprintln!("yt-dlp failed: {}", error);
-
-            // Try a different approach - maybe without audio format specification
-            println!("Retrying with simplified parameters...");
-            let retry_output = Command::new("yt-dlp")
-                .args(["-f", "bestaudio", "--get-url", &url])
-                .output()
-                .expect("Failed to execute yt-dlp");
-
-            if retry_output.status.success() {
-                let audio_url = String::from_utf8_lossy(&retry_output.stdout)
-                    .trim()
-                    .to_string();
-                println!("Retry successful. Got audio URL: {}", audio_url);
-                Some(audio_url)
-            } else {
-                eprintln!(
-                    "Retry also failed: {}",
-                    String::from_utf8_lossy(&retry_output.stderr)
-                );
-                None
-            }
+            eprintln!(
+                "Retry also failed: {}",
+                String::from_utf8_lossy(&retry_output.stderr)
+            );
+            None
         }
     }
 
