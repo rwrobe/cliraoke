@@ -88,8 +88,6 @@ impl App {
     }
 
     pub async fn search(&mut self) -> Result<(Vec<lyrics::Lyric>, Vec<audio::Video>), anyhow::Error> {
-        let query = self.query.clone();
-
         // Fetch the videos using the audio client.
         let videos = self.audio.fetch_videos(self.query.as_str()).await;
 
