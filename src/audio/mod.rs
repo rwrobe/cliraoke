@@ -1,21 +1,32 @@
-pub(crate) mod audio {
-    use reqwest::Client;
-    use serde_json::Value;
-    use std::process::Command;
-    use anyhow::anyhow;
+use anyhow::anyhow;
+use reqwest::Client;
+use serde_json::Value;
+use std::process::Command;
 
-    const SEARCH_SUFFIX: &str = "karaoke version";
+#[derive(Debug)]
+pub struct Audio {
+    pub yt_api_key: String,
+}
 
-    pub struct Video {
-        pub id: String,
-        pub title: String,
-        pub artist: String,
+pub struct OptionResponse {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+}
+
+const SEARCH_SUFFIX: &str = "karaoke version";
+
+impl Audio {
+    pub fn new(yt_api_key: &str) -> Audio {
+        Audio {
+            yt_api_key: yt_api_key.to_owned(),
+        }
     }
 
     pub async fn fetch_videos(
-        api_key: &str,
+        &self,
         query: &str,
-    ) -> anyhow::Result<Vec<Video>> {
+    ) -> anyhow::Result<Vec<OptionResponse>> {
         let client = Client::new(); // Create a new HTTP client
         let page_token = String::new(); // Token to handle pagination
         let max_results = 5; // Maximum number of results per page
@@ -23,7 +34,7 @@ pub(crate) mod audio {
         // Build the API request URL
         let url = format!(
             "https://www.googleapis.com/youtube/v3/search?key={}&q={}&part=snippet,id&order=relevance&maxResults={}&type=video&pageToken={}",
-            api_key,
+            self.yt_api_key,
             format!("{} {}", query, SEARCH_SUFFIX),
             max_results,
             page_token
@@ -44,7 +55,6 @@ pub(crate) mod audio {
 
         let json: Value = response.json().await?; // Parse the response body as JSON
 
-
         #[derive(Debug, serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct YtId {
@@ -63,12 +73,12 @@ pub(crate) mod audio {
         }
         #[derive(Debug, serde::Deserialize)]
         struct YoutubeResponse {
-            items: Vec<YoutubeItem>
+            items: Vec<YoutubeItem>,
         }
 
         let json_response = serde_json::from_value::<YoutubeResponse>(json)?;
         let videos: Vec<_> = json_response.items.iter().map(|item| {
-            Video {
+            OptionResponse {
                 id: item.id.video_id.to_owned(),
                 title: item.snippet.title.to_owned(),
                 artist: item.snippet.channel_title.to_owned(),
@@ -98,30 +108,31 @@ pub(crate) mod audio {
         if output.status.success() {
             let audio_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
             Some(audio_url)
+
+        }
+
+        let error = String::from_utf8_lossy(&output.stderr);
+        eprintln!("yt-dlp failed: {}", error);
+
+        // Try a different approach - maybe without audio format specification
+        println!("Retrying with simplified parameters...");
+        let retry_output = Command::new("yt-dlp")
+            .args(["-f", "bestaudio", "--get-url", &url])
+            .output()
+            .expect("Failed to execute yt-dlp");
+
+        if retry_output.status.success() {
+            let audio_url = String::from_utf8_lossy(&retry_output.stdout)
+                .trim()
+                .to_string();
+            println!("Retry successful. Got audio URL: {}", audio_url);
+            Some(audio_url)
         } else {
-            let error = String::from_utf8_lossy(&output.stderr);
-            eprintln!("yt-dlp failed: {}", error);
-
-            // Try a different approach - maybe without audio format specification
-            println!("Retrying with simplified parameters...");
-            let retry_output = Command::new("yt-dlp")
-                .args(["-f", "bestaudio", "--get-url", &url])
-                .output()
-                .expect("Failed to execute yt-dlp");
-
-            if retry_output.status.success() {
-                let audio_url = String::from_utf8_lossy(&retry_output.stdout)
-                    .trim()
-                    .to_string();
-                println!("Retry successful. Got audio URL: {}", audio_url);
-                Some(audio_url)
-            } else {
-                eprintln!(
-                    "Retry also failed: {}",
-                    String::from_utf8_lossy(&retry_output.stderr)
-                );
-                None
-            }
+            eprintln!(
+                "Retry also failed: {}",
+                String::from_utf8_lossy(&retry_output.stderr)
+            );
+            None
         }
     }
 

@@ -48,7 +48,11 @@ pub struct Lyric {
     pub(crate) synced_lyrics: String,
 }
 
-type LyricsMap = BTreeMap<u64, String>;
+#[derive(Debug, Clone)]
+pub struct DisplayLyric {
+    pub timestamp: u64,
+    pub text: String,
+}
 
 pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
     let client = Client::new(); // Create a new HTTP client
