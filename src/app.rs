@@ -21,16 +21,32 @@ pub enum WidgetState {
     Lyrics,
     Queue,
     #[default]
-    Search,
+    SearchYT,
+    SearchLyrics,
 }
 
 #[derive(Debug, Default)]
 pub struct App {
     pub exit: bool,
     pub lyric: String,
+    pub query: String,
     pub queue: SongQueue,
     pub time: u64, // Time in milliseconds.
+    pub ui_mode: UIMode,
     pub widget_state: WidgetState,
+}
+
+#[derive(Debug, Default)]
+pub enum UIMode {
+    Edit,
+    #[default]
+    Navigation,
+}
+
+pub struct SearchState {
+    pub query: String,
+    pub results: Vec<Song>,
+    pub stat: ListState,
 }
 
 #[derive(Debug, Default)]
@@ -55,16 +71,20 @@ pub struct Lyric {
 }
 
 impl App {
-    pub async fn run(
-        &mut self,
-        mut terminal: DefaultTerminal,
-        yt_api_key: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events()?;
+    pub fn new()-> App {
+        App {
+            exit: false,
+            lyric: String::new(),
+            query: String::new(),
+            queue: SongQueue::default(),
+            time: 0,
+            ui_mode: UIMode::Navigation,
+            widget_state: WidgetState::SearchYT,
         }
-        Ok(())
+    }
+
+    pub fn add_to_queue(&mut self, song: Song) {
+        self.queue.songs.push(song);
     }
 
     fn draw(&self, frame: &mut Frame) {
@@ -112,7 +132,10 @@ impl App {
     }
 
     fn search(&mut self) {
-        self.widget_state = WidgetState::Search;
+        if self.widget_state == WidgetState::SearchYT || self.widget_state == WidgetState::SearchLyrics {
+            self.widget_state = WidgetState::Lyrics
+        }
+        self.widget_state = WidgetState::SearchYT;
     }
 
     fn exit(&mut self) {
@@ -181,8 +204,15 @@ impl Widget for &App {
                     .centered()
                     .render(area, buf);
             }
-            WidgetState::Search => {
-                let search = Text::from(vec![Line::from("Search".bold())]);
+            WidgetState::SearchYT => {
+                let search = Text::from(vec![Line::from("Search YouTube for Your Song (Press <Tab> to cancel)".bold())]);
+                Paragraph::new(search)
+                    .centered()
+                    .block(block)
+                    .render(area, buf);
+            }
+            WidgetState::SearchLyrics => {
+                let search = Text::from(vec![Line::from("Ok, now let's find the lyrics (Press <Tab> to cancel)".bold())]);
                 Paragraph::new(search)
                     .centered()
                     .block(block)
