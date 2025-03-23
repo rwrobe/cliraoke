@@ -3,11 +3,6 @@ use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
 
-#[derive(Debug)]
-pub struct Audio {
-    pub yt_api_key: String,
-}
-
 pub struct OptionResponse {
     pub id: String,
     pub title: String,
@@ -107,7 +102,7 @@ impl Audio {
 
         if output.status.success() {
             let audio_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            Some(audio_url)
+            return Some(audio_url);
 
         }
 

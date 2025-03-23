@@ -1,36 +1,15 @@
+use crate::app::{LyricsMap, Song};
 use regex::Regex;
 use reqwest::Client;
-use serde::{Deserialize, Deserializer};
-use serde_json::{Number, Value};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 use std::{thread, u64};
 
 pub(crate) mod error;
 
-fn deserialize_u64<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = Number::deserialize(deserializer)?;
-    Ok(s.to_string())
-}
 
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LyricResponse {
-    #[serde(deserialize_with = "deserialize_u64")]
-    pub(crate) id: String,
-    pub(crate) track_name: String,
-    pub(crate) artist_name: String,
-    _album_name: String,
-    _duration: f64,
-    _instrumental: bool,
-    _plain_lyrics: Option<String>,
-    pub(crate) synced_lyrics: Option<String>,
-    // TODO: Is this even possible?
-    pub(crate) message: Option<Message>,
-}
+
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +24,7 @@ pub struct OptionResponse {
     pub(crate) id: String,
     pub(crate) artist: String,
     pub(crate) title: String,
-    pub(crate) synced_lyrics: String,
+    pub(crate) synced_lyrics: LyricsMap,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +33,7 @@ pub struct DisplayLyric {
     pub text: String,
 }
 
-pub async fn search_lyrics(query: &str) -> Result<Vec<OptionResponse>, anyhow::Error> {
+pub async fn search(query: &str) -> Result<Vec<Song>, anyhow::Error> {
     let client = Client::new(); // Create a new HTTP client
     // let mut lyrics = Vec::new(); // Initialize a vector to store videos
     let base_url = "https://lrclib.net/api/search";
@@ -67,13 +46,6 @@ pub async fn search_lyrics(query: &str) -> Result<Vec<OptionResponse>, anyhow::E
         .await
         .expect("should get lrclib response"); // Send the HTTP GET request
 
-    // TODO: We can do this with better error handling
-    // if !response.status().is_success() {
-    //     println!("API request failed with status: {}", response.status());
-    //     println!("Response body: {}", response.text().await?);
-    //     return Err(anyhow::anyhow!("API request failed"));
-    // }
-
     let json: Vec<Value> = response
         .json()
         .await
@@ -83,44 +55,24 @@ pub async fn search_lyrics(query: &str) -> Result<Vec<OptionResponse>, anyhow::E
     let lyrics = json
         .iter()
         .cloned()
-        .filter_map(|v| match serde_json::from_value::<LyricResponse>(v) {
-            Ok(lyric) => Some(lyric),
+        .filter_map(|v| match serde_json::from_value::<Song>(v) {
+            Ok(song) => Some(song),
             Err(e) => {
                 println!("Failed to parse lyric: {}", e);
                 None
             }
         })
-        .map(|l| OptionResponse {
-            id: l.id.to_string(),
-            artist: l.artist_name,
-            title: l.track_name,
-            // Again, we should handle this case better elsewhere, this is placeholder
-            // and is never read by the application using this data.
-            synced_lyrics: l.synced_lyrics.unwrap_or("".to_owned()),
+        .map(|l| {
+            let lyrics_map = raw_to_lyrics_map(&l.synced_lyrics).unwrap();
+
+            return Song {
+                lyric_map: Some(lyrics_map),
+                ..l
+            }
         })
         .collect();
 
     Ok(lyrics)
-}
-
-pub async fn fetch_lyrics(id: &str) -> anyhow::Result<Option<LyricResponse>> {
-    let url = format!("https://lrclib.net/api/get/{}", id);
-
-    let response = reqwest::get(&url).await?.json::<LyricResponse>().await?;
-
-    // Check if we have synced lyrics
-    if let Some(synced_lyrics) = response.synced_lyrics {
-        let lyrics_map = raw_to_lyrics_map(&synced_lyrics)?;
-        return Ok(Some(lyrics_map));
-    }
-
-    if let Some(synced_lyrics) = response.message.and_then(|m| m.synced_lyrics) {
-        let lyrics_map = raw_to_lyrics_map(&synced_lyrics)?;
-        return Ok(Some(lyrics_map));
-    }
-
-    // Print error where that is handled...
-    Err(anyhow::anyhow!("No synced lyrics found in response"))
 }
 
 pub fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
@@ -166,7 +118,7 @@ pub fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
 }
 
 // TODO: Might have a better way to do this based on response... Deal with later.
-fn raw_to_lyrics_map(synced_lyric_str: &str) -> anyhow::Result<LyricResponse> {
+fn raw_to_lyrics_map(synced_lyric_str: &str) -> anyhow::Result<LyricsMap> {
     // Create regex to extract timestamp and text
     let re = Regex::new(r"^\[(\d+):(\d+)\.(\d+)\]\s*(.*)$")?;
 

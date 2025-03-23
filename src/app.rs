@@ -1,40 +1,31 @@
-use crate::audio::Audio;
+use crate::ui::{UIMode, UIState};
+use crate::{audio, lyrics};
 use ratatui::widgets::ListState;
 use std::process::exit;
-use crate::{audio, lyrics};
+use serde::{Deserialize, Deserializer};
+use serde_json::Number;
+use std::collections::BTreeMap;
+use std::u64;
 
-#[derive(Debug, Default, PartialEq)]
-pub enum WidgetState {
-    Lyrics,
-    Queue,
-    #[default]
-    SearchYT,
-    SearchLyrics,
+fn deserialize_u64<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = Number::deserialize(deserializer)?;
+    Ok(s.to_string())
 }
 
 #[derive(Debug)]
 pub struct App {
-    audio: Audio,
     pub exit: bool,
     pub lyric: String,
     pub query: String,
+    pub audio_results: Vec<Song>,
+    pub lyric_results: Vec<Song>,
     pub queue: SongQueue,
     pub time: u64, // Time in milliseconds.
     pub ui_mode: UIMode,
-    pub widget_state: WidgetState,
-}
-
-#[derive(Debug, Default, PartialEq)]
-pub enum UIMode {
-    Edit,
-    #[default]
-    Navigation,
-}
-
-pub struct SearchState {
-    pub query: String,
-    pub results: Vec<Song>,
-    pub stat: ListState,
+    pub ui_state: UIState,
 }
 
 #[derive(Debug, Default)]
@@ -43,32 +34,42 @@ pub struct SongQueue {
     pub stat: ListState,
 }
 
-#[derive(Debug, Clone)]
+pub type LyricsMap = BTreeMap<u64, String>;
+
+// Song is the master struct that holds information composed by both lyric and audio sources.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Song {
-    pub yt_ud: String,
-    pub lyric_ud: u64,
-    pub title: String,
-    pub artist: String,
-    pub lyrics: Vec<lyrics::DisplayLyric>,
+    #[serde(deserialize_with = "deserialize_u64", rename = "id")]
+    pub(crate) lyric_id: String,
+    pub(crate) video_id: String,
+    pub(crate) track_name: String,
+    pub(crate) artist_name: String,
+    pub(crate) synced_lyrics: String,
+    pub(crate) lyric_map: Option<LyricsMap>,
+    pub message: ()
 }
 
 impl App {
-    pub fn new(audio: Audio)-> App {
+    pub fn new() -> App {
         App {
-            audio,
             exit: false,
             lyric: String::new(),
             query: String::new(),
+            audio_results: Vec::new(),
+            lyric_results: Vec::new(),
             queue: SongQueue::default(),
             time: 0,
             ui_mode: UIMode::Navigation,
-            widget_state: WidgetState::SearchYT,
+            ui_state: UIState::Search,
         }
     }
 
-    pub async fn search(&mut self) -> Result<(Vec<lyrics::OptionResponse>, Vec<audio::OptionResponse>), anyhow::Error> {
-        // Fetch the videos using the audio client.
-        let videos = self.audio.fetch_videos(self.query.as_str()).await;
+    // search returns two vectors of songs: one from the audio search and one from the lyrics search. These become options for the user.
+    pub async fn
+    search(&mut self, api_ky: &str) -> Result<(Vec<Song>, Vec<Song>), anyhow::Error> {
+        // Search for videos from YouTube.
+        let videos = audio::search(api_ky, self.query.as_str()).await;
 
         if videos.is_err() {
             println!(
@@ -79,20 +80,23 @@ impl App {
         }
 
         // Get the lyrics for the query:
-        let lyrs = lyrics::search_lyrics(self.query.as_str()).await;
+        let lyrs = lyrics::search(self.query.as_str()).await;
         if lyrs.is_err() {
-            println!("We found your song, but had a problem finding the lyrics: {}", lyrs.err().unwrap());
+            println!(
+                "We found your song, but had a problem finding the lyrics: {}",
+                lyrs.err().unwrap()
+            );
             exit(1);
         }
 
         Ok((lyrs?, videos?))
     }
 
-    pub fn compose_song(&mut self, lyric: lyrics::OptionResponse, video: audio::OptionResponse) {
+    // add_to_queue will compose a Song from the audio and lyric selections and add it to the queue.
+    pub fn add_to_queue(&mut self, audio_selection: Song, lyric_selection: Song) {
+        let mut song = lyric_selection.clone();
+        song.video_id = audio_selection.video_id;
 
-    }
-
-    pub fn add_to_queue(&mut self, song: Song) {
         self.queue.songs.push(song);
     }
 
@@ -106,3 +110,4 @@ impl App {
         self.time -= 500;
     }
 }
+
