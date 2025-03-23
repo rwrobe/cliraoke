@@ -3,6 +3,7 @@ mod audio;
 mod cli;
 mod lyrics;
 mod ui;
+mod widget;
 
 use crate::app::App;
 use crate::ui::ui;
