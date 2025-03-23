@@ -41,7 +41,7 @@ pub struct Message {
 // This is for print purposes only, perhaps the abstraction should not be here but
 // in the future print to std layer?
 #[derive(Debug)]
-pub struct Lyric {
+pub struct OptionResponse {
     pub(crate) id: String,
     pub(crate) artist: String,
     pub(crate) title: String,
@@ -54,7 +54,7 @@ pub struct DisplayLyric {
     pub text: String,
 }
 
-pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
+pub async fn search_lyrics(query: &str) -> Result<Vec<OptionResponse>, anyhow::Error> {
     let client = Client::new(); // Create a new HTTP client
     // let mut lyrics = Vec::new(); // Initialize a vector to store videos
     let base_url = "https://lrclib.net/api/search";
@@ -90,7 +90,7 @@ pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
                 None
             }
         })
-        .map(|l| Lyric {
+        .map(|l| OptionResponse {
             id: l.id.to_string(),
             artist: l.artist_name,
             title: l.track_name,
@@ -103,7 +103,7 @@ pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
     Ok(lyrics)
 }
 
-pub async fn fetch_lyrics(id: &str) -> anyhow::Result<Option<LyricsMap>> {
+pub async fn fetch_lyrics(id: &str) -> anyhow::Result<Option<LyricResponse>> {
     let url = format!("https://lrclib.net/api/get/{}", id);
 
     let response = reqwest::get(&url).await?.json::<LyricResponse>().await?;
@@ -166,7 +166,7 @@ pub fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {
 }
 
 // TODO: Might have a better way to do this based on response... Deal with later.
-fn raw_to_lyrics_map(synced_lyric_str: &str) -> anyhow::Result<LyricsMap> {
+fn raw_to_lyrics_map(synced_lyric_str: &str) -> anyhow::Result<LyricResponse> {
     // Create regex to extract timestamp and text
     let re = Regex::new(r"^\[(\d+):(\d+)\.(\d+)\]\s*(.*)$")?;
 

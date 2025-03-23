@@ -1,18 +1,5 @@
 use crate::audio::Audio;
-use color_eyre::owo_colors::OwoColorize;
 use ratatui::widgets::ListState;
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{
-        palette::tailwind::SLATE,
-        Color, Stylize,
-    },
-    symbols,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
-};
 use std::process::exit;
 use crate::{audio, lyrics};
 
@@ -79,7 +66,7 @@ impl App {
         }
     }
 
-    pub async fn search(&mut self) -> Result<(Vec<lyrics::Lyric>, Vec<audio::Video>), anyhow::Error> {
+    pub async fn search(&mut self) -> Result<(Vec<lyrics::OptionResponse>, Vec<audio::OptionResponse>), anyhow::Error> {
         // Fetch the videos using the audio client.
         let videos = self.audio.fetch_videos(self.query.as_str()).await;
 
@@ -101,7 +88,7 @@ impl App {
         Ok((lyrs?, videos?))
     }
 
-    pub fn compose_song(&mut self, lyric: lyrics::Lyric, video: audio::Video) {
+    pub fn compose_song(&mut self, lyric: lyrics::OptionResponse, video: audio::OptionResponse) {
 
     }
 
