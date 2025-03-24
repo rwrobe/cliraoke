@@ -14,7 +14,8 @@ use crate::tui::Event;
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Mode {
   #[default]
-  Home,
+  Navigation,
+  Editing,
 }
 
 pub struct App {
@@ -31,7 +32,7 @@ impl App {
   pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
     let home = Home::new();
     let fps = Timer::new();
-    let mode = Mode::Home;
+    let mode = Mode::Navigation;
     Ok(Self {
       tick_rate,
       frame_rate,
@@ -66,7 +67,7 @@ impl App {
           Event::Tick => action_tx.send(Action::Tick)?,
           Event::Render => action_tx.send(Action::Render)?,
           Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-          Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+          Event::Key(key) if key.kind == KeyEventKind::Press && self.mode == Mode::Navigation => match key.code {
             KeyCode::Char('/') => action_tx.send(Action::ToggleSearch)?,
             KeyCode::Char('u') => action_tx.send(Action::ToggleQueue)?,
             KeyCode::Char('q') => action_tx.send(Action::Quit)?,
@@ -93,6 +94,16 @@ impl App {
           },
           Action::Quit => self.should_quit = true,
           Action::TogglePlay => self.should_play = !self.should_play,
+          Action::ToggleSearch => {
+            match self.mode {
+              Mode::Editing => {
+                self.mode = Mode::Navigation;
+              },
+              _ => {
+                self.mode = Mode::Editing;
+              }
+            }
+          },
           Action::Resize(w, h) => {
             tui.resize(Rect::new(0, 0, w, h))?;
             tui.draw(|f| {

@@ -33,7 +33,6 @@ pub struct Home {
   pub input: Input,
   pub action_tx: Option<UnboundedSender<Action>>,
   pub keymap: HashMap<KeyEvent, Action>,
-  pub last_events: Vec<KeyEvent>,
 }
 
 impl Home {
@@ -69,14 +68,13 @@ impl Component for Home {
   }
 
   fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-    self.last_events.push(key.clone());
     let action = match self.mode {
       Mode::Normal | Mode::Processing | Mode::WithHelp => return Ok(None),
       Mode::Search => match key.code {
         KeyCode::Esc => Action::CancelSearch,
         KeyCode::Enter => {
           if let Some(sender) = &self.action_tx {
-            if let Err(e) = sender.send(Action::SearchSong(self.input.value().to_string())) {
+            if let Err(e) = sender.send(Action::SearchSong("test".to_string())) {
               error!("Failed to send action: {:?}", e);
             }
           }

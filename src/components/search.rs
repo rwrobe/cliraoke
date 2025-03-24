@@ -1,20 +1,63 @@
 use super::{queue, timer, Component, Frame};
 use crate::action::Action;
 use color_eyre::eyre::Result;
+use crossterm::event::{KeyCode, KeyEvent};
+use futures::channel::mpsc::UnboundedSender;
+use futures::SinkExt;
+use log::error;
 use ratatui::{prelude::*, widgets::*};
+use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
+use crate::tui::Event;
 
 pub struct Search {
   pub query: Input,
+  pub action_tx: Option<tokio::sync::mpsc::UnboundedSender<Action>>,
 }
 
 impl Search {
   pub fn new() -> Self {
-    Self { query: Input::default() }
+    Self {
+      query: Input::default(),
+      action_tx: None,
+    }
   }
 }
 
 impl Component for Search {
+  fn register_action_handler(&mut self, tx: tokio::sync::mpsc::UnboundedSender<Action>) -> Result<()> {
+    self.action_tx = Some(tx);
+    Ok(())
+  }
+
+  fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+    match key.code {
+      KeyCode::Esc => Action::CancelSearch,
+      KeyCode::Enter => {
+        if let Some(sender) = &mut self.action_tx {
+          if let Err(e) = sender.send(Action::SearchSong(self.query.value().to_string())) {
+            error!("Failed to send action: {:?}", e);
+          }
+          self.query.reset();
+          sender.send(Action::ToggleSearch)?;
+        }
+        return Ok(None);
+      },
+      KeyCode::Char('/') => {
+        self.query.reset();
+        if let Some(sender) = &mut self.action_tx {
+          sender.send(Action::ToggleSearch)?;
+        }
+        return Ok(None);
+      },
+      _ => {
+        self.query.handle_event(&crossterm::event::Event::Key(key));
+        return Ok(None);
+      },
+    };
+    Ok(None)
+  }
+  
   fn update(&mut self, _action: Action) -> Result<Option<Action>> {
     Ok(None)
   }
