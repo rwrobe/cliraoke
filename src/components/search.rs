@@ -32,7 +32,7 @@ impl Component for Search {
 
   fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
     match key.code {
-      KeyCode::Esc => Action::CancelSearch,
+      KeyCode::Esc => Action::GoHome,
       KeyCode::Enter => {
         if let Some(sender) = &mut self.action_tx {
           if let Err(e) = sender.send(Action::SearchSong(self.query.value().to_string())) {

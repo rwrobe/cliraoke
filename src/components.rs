@@ -10,10 +10,10 @@ use crate::{
 
 pub(crate) mod home;
 pub(crate) mod timer;
-mod queue;
+pub(crate) mod queue;
 mod lyrics;
-mod help;
-mod search;
+pub(crate) mod help;
+pub(crate) mod search;
 
 //// ANCHOR: component
 pub trait Component {

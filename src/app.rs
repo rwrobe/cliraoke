@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::{
   action::Action,
-  components::{timer::Timer, home::Home, Component},
+  components::{home::Home, Component},
   tui,
 };
 use crate::tui::Event;
@@ -31,7 +31,6 @@ pub struct App {
 impl App {
   pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
     let home = Home::new();
-    let fps = Timer::new();
     let mode = Mode::Navigation;
     Ok(Self {
       tick_rate,
@@ -68,19 +67,17 @@ impl App {
           Event::Render => action_tx.send(Action::Render)?,
           Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
           Event::Key(key) if key.kind == KeyEventKind::Press && self.mode == Mode::Navigation => match key.code {
-            KeyCode::Char('/') => action_tx.send(Action::ToggleSearch)?,
-            KeyCode::Char('u') => action_tx.send(Action::ToggleQueue)?,
             KeyCode::Char('q') => action_tx.send(Action::Quit)?,
             KeyCode::Char(' ') => action_tx.send(Action::TogglePlay)?,
-            KeyCode::Char('h') => action_tx.send(Action::ToggleHelp)?,
-            _ => action_tx.send(Action::Tick)?,
+            _ => {
+              for component in self.components.iter_mut() {
+                if let Some(action) = component.handle_events(Some(e.clone()))? {
+                  action_tx.send(action)?;
+                }
+              }
+            },
           },
           _ => {},
-        }
-        for component in self.components.iter_mut() {
-          if let Some(action) = component.handle_events(Some(e.clone()))? {
-            action_tx.send(action)?;
-          }
         }
       }
 
