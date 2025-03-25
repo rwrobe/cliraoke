@@ -32,17 +32,11 @@ pub struct Home {
     pub mode: Mode,
     pub input: Input,
     pub action_tx: Option<UnboundedSender<Action>>,
-    pub keymap: HashMap<KeyEvent, Action>,
 }
 
 impl Home {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn keymap(mut self, keymap: HashMap<KeyEvent, Action>) -> Self {
-        self.keymap = keymap;
-        self
     }
 
     pub fn add(&mut self, s: String) {
@@ -62,12 +56,19 @@ impl Home {
 }
 
 impl Component for Home {
+    fn name(&mut self) -> &'static str {
+        "Home"
+    }
+
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }
 
     fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        if self.mode == Mode::Search {
+            return Ok(None);
+        }
         let action = match key.code {
             KeyCode::Char('h') => Action::ToggleHelp,
             KeyCode::Char('/') => Action::ToggleSearch,

@@ -36,6 +36,10 @@ impl Timer {
 }
 
 impl Component for Timer {
+  fn name(&mut self) -> &'static str {
+    "Timer"
+  }
+
   fn update(&mut self, action: Action) -> Result<Option<Action>> {
     if let Action::Tick = action {
       self.app_tick()?

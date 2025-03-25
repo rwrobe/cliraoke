@@ -25,6 +25,10 @@ impl Search {
 }
 
 impl Component for Search {
+  fn name(&mut self) -> &'static str {
+    "Search"
+  }
+
   fn register_action_handler(&mut self, tx: tokio::sync::mpsc::UnboundedSender<Action>) -> Result<()> {
     self.action_tx = Some(tx);
     Ok(())

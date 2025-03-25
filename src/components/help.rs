@@ -13,6 +13,10 @@ impl Help {
 }
 
 impl Component for Help {
+  fn name(&mut self) -> &'static str {
+    "Help"
+  }
+
   fn update(&mut self, _action: Action) -> Result<Option<Action>> {
     Ok(None)
   }

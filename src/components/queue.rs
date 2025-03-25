@@ -37,6 +37,10 @@ impl Queue {
 }
 
 impl Component for Queue {
+    fn name(&mut self) -> &'static str {
+        "Queue"
+    }
+
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         todo!()
     }
