@@ -8,12 +8,13 @@ use crate::{
   tui::{Event, Frame},
 };
 
-pub(crate) mod home;
-pub(crate) mod timer;
-pub(crate) mod queue;
 mod lyrics;
+pub(crate) mod container;
 pub(crate) mod help;
+pub(crate) mod queue;
 pub(crate) mod search;
+pub(crate) mod timer;
+pub(crate) mod title;
 
 //// ANCHOR: component
 pub trait Component {
@@ -24,7 +25,6 @@ pub trait Component {
   fn init(&mut self) -> Result<()> {
     Ok(())
   }
-  fn name(&mut self) -> &'static str;
   fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
     let r = match event {
       Some(Event::Key(key_event)) => self.handle_key_events(key_event)?,

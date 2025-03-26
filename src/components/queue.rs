@@ -3,13 +3,14 @@ use crate::components::Component;
 use crate::models::song::Song;
 use crate::tui::{Event, Frame};
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyEvent, MouseEvent};
+use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
 use log::error;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::prelude::{Color, Line, Span, Style};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
 
+#[derive(Default)]
 pub struct Queue {
     pub songs: Vec<Song>,
     pub current_song: Option<Song>,
@@ -37,16 +38,13 @@ impl Queue {
 }
 
 impl Component for Queue {
-    fn name(&mut self) -> &'static str {
-        "Queue"
-    }
-
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
-        todo!()
+        self.action_tx = Some(tx);
+        Ok(())
     }
 
     fn init(&mut self) -> Result<()> {
-        todo!()
+        Ok(())
     }
 
     fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
@@ -58,22 +56,13 @@ impl Component for Queue {
     }
 
     fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        todo!()
+        match key.code {
+            _ => {Ok(None)}
+        }
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        match action {
-            Action::Tick => {
-                if self.songs.is_empty() {
-                    if let Some(sender) = &self.action_tx {
-                        if let Err(e) = sender.send(Action::ToggleQueue) {
-                            error!("Failed to send action: {:?}", e);
-                        }
-                    }
-                }
-
-                Ok(None)
-            }
+       match action {
             Action::SearchSong(s) => {
                 self.songs.push(Song {
                     lyric_id: "".to_string(),
@@ -85,17 +74,23 @@ impl Component for Queue {
                     message: (),
                 });
 
-                Ok(None)
+                if let Some(sender) = &mut self.action_tx {
+                    if let Err(e) = sender.send(Action::Render) {
+                        error!("Failed to send action: {:?}", e);
+                    }
+                }
             }
-            _ => Ok(None),
-        }
+            _ => {}
+        };
+
+        Ok(None)
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
         f.render_widget(
             Block::default()
                 .title(Span::styled(
-                    format!("{} in Queue", self.songs.len()),
+                    format!(" {} in Queue ", self.songs.len()),
                     Style::default().fg(Color::Yellow),
                 ))
                 .title_alignment(Alignment::Center)

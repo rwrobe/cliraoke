@@ -1,9 +1,9 @@
-use std::{collections::HashMap, time::Duration};
-
+use clap::builder::Str;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use log::error;
 use ratatui::{prelude::*, widgets::*};
+use std::{collections::HashMap, time::Duration};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::trace;
 use tui_input::{backend::crossterm::EventHandler, Input};
@@ -13,7 +13,10 @@ use crate::action::Action;
 use crate::components::help::Help;
 use crate::components::queue::Queue;
 use crate::components::search::Search;
+use crate::components::timer::Timer;
+use crate::components::title::Title;
 use crate::models::song::Song;
+use crate::tui::Event;
 
 #[derive(Default, Copy, Clone, PartialEq, Eq)]
 pub enum Mode {
@@ -26,21 +29,25 @@ pub enum Mode {
 }
 
 #[derive(Default)]
-pub struct Home {
-    pub counter: usize,
+pub struct Container {
     pub current_song: Song,
     pub mode: Mode,
-    pub input: Input,
+    pub queue: Queue,
+    pub search: Search,
+    pub timer: Timer,
     pub action_tx: Option<UnboundedSender<Action>>,
 }
 
-impl Home {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn add(&mut self, s: String) {
-        self.input = Input::default();
+impl Container {
+    pub fn new(queue: Queue, search: Search) -> Self {
+        Self {
+            current_song: Song::default(),
+            mode: Mode::Normal,
+            queue,
+            search,
+            timer: Timer::default(),
+            action_tx: None,
+        }
     }
 
     pub fn show_help(&mut self) {
@@ -55,78 +62,89 @@ impl Home {
     }
 }
 
-impl Component for Home {
-    fn name(&mut self) -> &'static str {
-        "Home"
-    }
-
+impl Component for Container {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }
 
-    fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.mode == Mode::Search {
-            return Ok(None);
-        }
-        let action = match key.code {
-            KeyCode::Char('h') => Action::ToggleHelp,
-            KeyCode::Char('/') => Action::ToggleSearch,
-            KeyCode::Char('u') => Action::ToggleQueue,
-            KeyCode::Esc => Action::GoHome,
-            KeyCode::Char('j') => {
-                match self.mode {
-                    Mode::WithQueue | Mode::Search => {
-                        Action::PreviousSong
-                    }
-                    _ => {
-                        Action::Noop
-                    }
+    fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
+        // Child components have first priority at handling events.
+        let action = match self.mode {
+            Mode::Normal => {
+                if let Some(action) = self.queue.handle_events(event)? {
+                    self.update(action)?
+                } else {
+                    None
                 }
             }
-            KeyCode::Char('k') => {
-                match self.mode {
-                    Mode::WithQueue | Mode::Search => {
-                        Action::NextSong
-                    }
-                    _ => {
-                        Action::Noop
-                    }
+            Mode::WithQueue => {
+                if let Some(action) = self.queue.handle_events(event)? {
+                    self.update(action)?
+                } else {
+                    None
                 }
             }
-            _ => Action::Noop,
+            Mode::Search => {
+                if let Some(action) = self.search.handle_events(event)? {
+                    self.update(action)?
+                } else {
+                    None
+                }
+            }
+            _ => None,
         };
 
-        Ok(Some(action))
+        Ok(action)
+    }
+
+    fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        let action = match self.mode {
+            Mode::Search => self.search.handle_key_events(key)?,
+            Mode::WithQueue => self.queue.handle_key_events(key)?,
+            _ => Some(match key.code {
+                KeyCode::Char('q') => Action::Quit,
+                KeyCode::Char('h') => Action::ToggleHelp,
+                KeyCode::Char('/') => Action::ToggleSearch,
+                KeyCode::Char('u') => Action::ToggleQueue,
+                KeyCode::Esc => Action::GoHome,
+                KeyCode::Char('j') => match self.mode {
+                    Mode::WithQueue | Mode::Search => Action::PreviousSong,
+                    _ => Action::Noop,
+                },
+                KeyCode::Char('k') => match self.mode {
+                    Mode::WithQueue | Mode::Search => Action::NextSong,
+                    _ => Action::Noop,
+                },
+                _ => Action::Noop,
+            })
+        };
+
+        Ok(action)
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::ToggleHelp => self.show_help(),
-            Action::SearchSong(s) => self.add(s),
             Action::GoHome => {
                 self.mode = Mode::Normal;
             }
-            Action::ToggleSearch => {
-                match self.mode {
-                    Mode::Search => {
-                        self.mode = Mode::Normal;
-                    }
-                    _ => {
-                        self.mode = Mode::Search;
-                    }
+            Action::ToggleSearch => match self.mode {
+                Mode::Search => {
+                    self.mode = Mode::Normal;
                 }
-            }
-            Action::ToggleQueue => {
-                match self.mode {
-                    Mode::WithQueue => {
-                        self.mode = Mode::Normal;
-                    }
-                    _ => {
-                        self.mode = Mode::WithQueue;
-                    }
+                _ => {
+                    self.mode = Mode::Search;
                 }
-            }
+            },
+            Action::ToggleQueue => match self.mode {
+                Mode::WithQueue => {
+                    self.mode = Mode::Normal;
+                }
+                _ => {
+                    self.mode = Mode::WithQueue;
+                }
+            },
             Action::EnterProcessing => {
                 self.mode = Mode::Processing;
             }
@@ -142,22 +160,20 @@ impl Component for Home {
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
         let rects = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Percentage(100), Constraint::Min(3)])
+            .constraints([
+                Constraint::Min(1),
+                Constraint::Percentage(100),
+                Constraint::Min(3),
+            ])
             .split(rect);
 
-        let width = rects[1].width.max(3) - 3; // keep 2 for borders and 1 for cursor
-        let scroll = self.input.visual_scroll(width as usize);
-
+        // Header
         const EMOJI_MARTINI: char = '\u{1F378}';
         const EMDASH: char = '\u{2014}';
 
-        // Title of the app.
-        f.render_widget(
-            Paragraph::new(format!(" {} CLIraoke {} Karaoke for the Command Line {} ", EMOJI_MARTINI, EMDASH, EMOJI_MARTINI))
-                .style(Style::default().fg(Color::Yellow))
-                .alignment(Alignment::Center),
-            rects[0],
-        );
+        Title::
+        new(format!(" {} CLIraoke {} Karaoke for the Command Line {} ", EMOJI_MARTINI, EMDASH, EMOJI_MARTINI).as_str())
+            .draw(f, rects[0])?;
 
         // Lyrics block.
         let lyrics_block = Block::default()
@@ -209,6 +225,13 @@ impl Component for Home {
                 let mut t = timer::Timer::new();
                 t.draw(f, rects[2])?;
             }
+        }
+
+        // Footer
+        match self.mode {
+            Mode::WithHelp => Help::new()
+                .draw(f, rects[2])?,
+            _ => self.timer.draw(f, rects[2])?,
         }
 
         Ok(())
