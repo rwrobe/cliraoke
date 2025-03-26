@@ -26,10 +26,7 @@ impl Search {
 }
 
 impl Component for Search {
-    fn register_action_handler(
-        &mut self,
-        tx: tokio::sync::mpsc::UnboundedSender<Action>,
-    ) -> Result<()> {
+    fn register_action_handler(&mut self, tx: tokio::sync::mpsc::UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }
@@ -58,7 +55,7 @@ impl Component for Search {
             }
             _ => {
                 self.query.handle_event(&crossterm::event::Event::Key(key));
-                return Ok(None);
+                Action::Update
             }
         };
         Ok(None)

@@ -52,8 +52,11 @@ impl Container {
 }
 
 impl Component for Container {
+    // Register Container action handler as well as its children.
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
-        self.action_tx = Some(tx);
+        self.action_tx = Some(tx.clone());
+        self.search.register_action_handler(tx.clone())?;
+        self.queue.register_action_handler(tx.clone())?;
         Ok(())
     }
 
@@ -64,17 +67,17 @@ impl Component for Container {
                 self.handle_key_events(key_event)?
             },
             _ => match self.mode {
-                    Mode::WithQueue => self.queue.handle_events(event)?,
-                    Mode::Search => self.search.handle_events(event)?,
-                    _ => None,
-                }
+                Mode::WithQueue => self.queue.handle_events(event)?,
+                Mode::Search => self.search.handle_events(event)?,
+                _ => None,
+            }
         };
 
         Ok(action)
     }
 
     fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        let normalMode = |key: KeyEvent| -> Option<Action> {
+        let normal_mode = |key: KeyEvent| -> Option<Action> {
             let action = match key.code {
                 KeyCode::Char('q') => Action::Quit,
                 KeyCode::Char('h') => Action::ToggleHelp,
@@ -101,9 +104,7 @@ impl Component for Container {
                 if let Some(action) = self.search.handle_key_events(key)? {
                     return Ok(Some(action));
                 }
-
-                // If result is None, handle with the parent component.
-                normalMode(key)
+                Some(Action::Noop)
             },
             Mode::WithQueue => {
                 // Handle search key events.
@@ -112,52 +113,63 @@ impl Component for Container {
                 }
 
                 // If result is None, handle with the parent component.
-                normalMode(key)
+                normal_mode(key)
             },
-            _ => normalMode(key),
+            _ => normal_mode(key),
         };
 
         Ok(action)
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        match action {
-            Action::ToggleHelp => match self.mode {
-                Mode::WithHelp => {
+        let mut normal_mode = |action: Action| -> Option<Action> {
+            match action {
+                Action::ToggleHelp => match self.mode {
+                    Mode::WithHelp => {
+                        self.mode = Mode::Normal;
+                    }
+                    _ => {
+                        self.mode = Mode::WithHelp;
+                    }
+                }
+                Action::GoHome => {
                     self.mode = Mode::Normal;
                 }
-                _ => {
-                    self.mode = Mode::WithHelp;
+                Action::ToggleSearch => match self.mode {
+                    Mode::Search => {
+                        self.mode = Mode::Normal;
+                    }
+                    _ => {
+                        self.mode = Mode::Search;
+                    }
+                },
+                Action::ToggleQueue => match self.mode {
+                    Mode::WithQueue => {
+                        self.mode = Mode::Normal;
+                    }
+                    _ => {
+                        self.mode = Mode::WithQueue;
+                    }
+                },
+                Action::EnterProcessing => {
+                    self.mode = Mode::Processing;
                 }
-            }
-            Action::GoHome => {
-                self.mode = Mode::Normal;
-            }
-            Action::ToggleSearch => match self.mode {
-                Mode::Search => {
+                Action::ExitProcessing => {
+                    // TODO: Make this go to previous mode instead
                     self.mode = Mode::Normal;
                 }
-                _ => {
-                    self.mode = Mode::Search;
-                }
-            },
-            Action::ToggleQueue => match self.mode {
-                Mode::WithQueue => {
-                    self.mode = Mode::Normal;
-                }
-                _ => {
-                    self.mode = Mode::WithQueue;
-                }
-            },
-            Action::EnterProcessing => {
-                self.mode = Mode::Processing;
+                _ => (),
             }
-            Action::ExitProcessing => {
-                // TODO: Make this go to previous mode instead
-                self.mode = Mode::Normal;
-            }
-            _ => (),
-        }
+
+            Some(action)
+        };
+
+        // Handle actions for child components.
+        self.queue.update(action.clone())?;
+        self.search.update(action.clone())?;
+
+        normal_mode(action);
+
         Ok(None)
     }
 

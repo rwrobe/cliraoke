@@ -1,3 +1,4 @@
+use clap::builder::styling::AnsiColor::White;
 use crate::action::Action;
 use crate::components::Component;
 use crate::models::song::Song;
@@ -5,9 +6,20 @@ use crate::tui::{Event, Frame};
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
 use log::error;
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::prelude::{Color, Line, Span, Style};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::{
+    buffer::Buffer,
+    layout::{Constraint, Layout, Rect},
+    style::{
+        Color, Modifier, Style, Stylize,
+    },
+    text::Line,
+    widgets::{
+        Block, Borders, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph,
+        StatefulWidget, Widget, Wrap,
+    },
+};
+use ratatui::layout::Alignment;
+use ratatui::style::Color::{Black, Cyan};
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Default)]
@@ -87,18 +99,30 @@ impl Component for Queue {
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
-        f.render_widget(
-            Block::default()
-                .title(Span::styled(
-                    format!(" {} in Queue ", self.songs.len()),
-                    Style::default().fg(Color::Yellow),
-                ))
-                .title_alignment(Alignment::Center)
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .style(Style::default().fg(Color::Cyan)),
-            rect,
-        );
+        let block = Block::new()
+            .title(Line::from(format!(" {} songs in the queue ", self.songs.len())))
+            .title_alignment(Alignment::Center)
+            .borders(Borders::TOP)
+            .border_style(Style::new().fg(Cyan));
+
+        // Iterate through all elements in the `items` and stylize them.
+        let items: Vec<ListItem> = self
+            .songs
+            .iter()
+            .enumerate()
+            .map(|(i, song)| {
+                ListItem::new(song.title.clone()).bg(Black)
+            })
+            .collect();
+
+        // Create a List from all list items and highlight the currently selected one
+        let list = List::new(items)
+            .block(block)
+            .highlight_style(Style::new().bg(Cyan).fg(Black))
+            .highlight_symbol(">")
+            .highlight_spacing(HighlightSpacing::Always);
+
+        StatefulWidget::render(list, rect, buf, &mut self.songs.state);
 
         Ok(())
     }
