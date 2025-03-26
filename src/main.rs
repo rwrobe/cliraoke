@@ -4,36 +4,75 @@
 
 // ANCHOR: all
 pub mod action;
-pub mod app;
 pub mod cli;
 pub mod components;
-pub mod tui;
 mod models;
 mod util;
+mod events;
+mod app;
+mod constants;
 
-use clap::Parser;
-use cli::Cli;
-use color_eyre::eyre::Result;
-
-use crate::{
-  app::App,
+use anyhow::Result;
+use app::AppComponent;
+use crossterm::{
+  execute,
+  terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use events::{Event, Events, Key};
+use std::io;
+use tui::{backend::CrosstermBackend, Terminal};
 
-async fn tokio_main() -> Result<()> {
-  let args = Cli::parse();
-  let mut app = App::new(args.tick_rate, args.frame_rate)?;
-  app.run().await?;
+#[tokio::main]
+async fn main() -> Result<()> {
+  setup_terminal()?;
+
+  let stdout = io::stdout();
+  let backend = CrosstermBackend::new(stdout);
+  let mut terminal = Terminal::new(backend)?;
+  let events = Events::new(200);
+
+  let mut app = AppComponent::new();
+  terminal.clear()?;
+
+  loop {
+    terminal.draw(|f| {
+      if let Err(err) = app.render(f) {
+        println!("Error thrown: {:?}", err);
+        std::process::exit(1);
+      }
+    })?;
+
+    match events.next()? {
+      Event::Input(key) => match app.event(key).await {
+        Ok(state) => {
+          if !state.is_consumed() && (key == Key::Char('q')) {
+            break;
+          }
+        }
+        Err(_) => unimplemented!(),
+      },
+
+      Event::Tick => {}
+    }
+  }
+
+  shutdown_terminal()?;
+  terminal.show_cursor()?;
 
   Ok(())
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-  if let Err(e) = tokio_main().await {
-    eprintln!("{} error: Something went wrong", env!("CARGO_PKG_NAME"));
-    Err(e)
-  } else {
-    Ok(())
-  }
+fn setup_terminal() -> Result<()> {
+  enable_raw_mode()?;
+  let mut stdout = io::stdout();
+  execute!(stdout, EnterAlternateScreen)?;
+  Ok(())
 }
-// ANCHOR_END: all
+
+fn shutdown_terminal() -> Result<()> {
+  disable_raw_mode()?;
+
+  let mut stdout = io::stdout();
+  execute!(stdout, LeaveAlternateScreen)?;
+  Ok(())
+}

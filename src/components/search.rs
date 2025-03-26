@@ -1,6 +1,8 @@
-use super::{queue, timer, Component, Frame};
-use crate::action::Action;
-use crate::tui::Event;
+use super::{queue, timer, Frame, RenderableComponent};
+use crate::{
+    action::Action,
+    events::{EventState, Key},
+};
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use futures::channel::mpsc::UnboundedSender;
@@ -9,63 +11,69 @@ use log::error;
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
+use ratatui::{
+    widgets::{List, ListState}
+};
+use crate::components::stateful_list::StatefulList;
 
 #[derive(Default)]
-pub struct Search {
-    pub query: Input,
-    pub action_tx: Option<tokio::sync::mpsc::UnboundedSender<Action>>,
+pub struct Search<'search> {
+    query: Input,
+    audio_results: StatefulList<'search>,
+    lyric_results: StatefulList<'search>,
 }
 
-impl Search {
+impl<'a> Search<'a> {
     pub fn new() -> Self {
         Self {
             query: Input::default(),
-            action_tx: None,
+            audio_results: StatefulList::default(),
+            lyric_results: StatefulList::default(),
         }
+    }
+
+    fn add_to_query(&mut self, key: KeyEvent) {
+        self.query.handle_event(&crossterm::event::Event::Key(key));
+    }
+
+    fn search(&mut self) {
+        let query = self.query.value();
+        if query.is_empty() {
+            return;
+        }
+
+        // TODO: search for songs
+    }
+
+    pub async fn event(&mut self, key: Key) -> Result<EventState> {
+        match key {
+            k if k == Key::Enter => {
+                self.search();
+                return Ok(EventState::Consumed);
+            }
+            k if k == Key::Char('/') => {
+                self.query.reset();
+                return Ok(EventState::Consumed);
+            }
+            k if k == Key::Esc => {
+                self.query.reset();
+                return Ok(EventState::Consumed);
+            }
+            _ => {
+                self.add_to_query(key.into());
+            }
+        }
+        Ok(EventState::NotConsumed)
     }
 }
 
-impl Component for Search {
-    fn register_action_handler(&mut self, tx: tokio::sync::mpsc::UnboundedSender<Action>) -> Result<()> {
-        self.action_tx = Some(tx);
-        Ok(())
-    }
-
-    fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        match key.code {
-            KeyCode::Esc => Action::GoHome,
-            KeyCode::Enter => {
-                if let Some(sender) = &mut self.action_tx {
-                    if let Err(e) = sender.send(Action::SearchSong(self.query.value().to_string()))
-                    {
-                        error!("Failed to send action: {:?}", e);
-                    }
-                    sender.send(Action::SearchSong(self.query.value().to_string()))?;
-                    sender.send(Action::ToggleSearch)?;
-                    self.query.reset();
-                }
-                return Ok(None);
-            }
-            KeyCode::Char('/') => {
-                self.query.reset();
-                if let Some(sender) = &mut self.action_tx {
-                    sender.send(Action::ToggleSearch)?;
-                }
-                return Ok(None);
-            }
-            _ => {
-                self.query.handle_event(&crossterm::event::Event::Key(key));
-                Action::Update
-            }
-        };
-        Ok(None)
-    }
-
-    fn update(&mut self, _action: Action) -> Result<Option<Action>> {
-        Ok(None)
-    }
-
-    fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
+impl<'search> RenderableComponent for Search<'search> {
+    fn render<B: Backend>(
+        &self,
+        f: &mut ratatui::Frame<B>,
+        rect: Rect,
+        focused: bool,
+    ) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.query.visual_scroll(width as usize);
 
@@ -91,12 +99,6 @@ impl Component for Search {
             );
 
         f.render_widget(input, rect);
-
-        f.set_cursor(
-            (rect.x + (rect.width / 2) - (self.query.cursor() as u16 / 2))
-                .min(rect.x + rect.width - 2),
-            rect.y + 1,
-        );
 
         Ok(())
     }

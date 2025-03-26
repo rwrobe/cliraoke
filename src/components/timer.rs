@@ -1,10 +1,17 @@
 use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
-use ratatui::{prelude::*, widgets::*};
+use ratatui::{
+    backend::Backend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Span, Spans, Text},
+    widgets::{Block, BorderType, Borders, Paragraph},
+    Frame,
+};
 
-use super::Component;
-use crate::{action::Action, tui::Frame};
+use super::{ RenderableComponent};
+use crate::{action::Action};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
@@ -12,17 +19,11 @@ pub enum Ticker {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Timer {
-    song_remaining_time: Duration,
+pub struct Timer<'song> {
+    song_remaining_time: Duration<'song>,
 }
 
-impl Default for Timer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Timer {
+impl<'song> Timer<'song> {
     pub fn new() -> Self {
         Self {
             song_remaining_time: Duration::from_secs(0),
@@ -35,15 +36,13 @@ impl Timer {
     }
 }
 
-impl Component for Timer {
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        if let Action::Tick = action {
-            self.app_tick()?
-        };
-        Ok(None)
-    }
-
-    fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
+impl<'song> RenderableComponent for Timer<'song> {
+    fn render<B: Backend>(
+        &self,
+        f: &mut Frame<B>,
+        rect: Rect,
+        focused: bool,
+    ) -> anyhow::Result<()> {
         let rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Length(1), Constraint::Min(0)])

@@ -17,4 +17,6 @@ pub struct Song {
     pub message: ()
 }
 
+pub type SongList<'a> = Vec<Song>;
+
 pub type LyricsMap = BTreeMap<u64, String>;

@@ -1,119 +1,193 @@
-use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
-use ratatui::prelude::Rect;
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-
-use crate::components::{
-    help::Help,
-    search::Search,
-    title::Title,
-    timer::Timer
-};
-use crate::tui::Event;
+use crate::events::EventState;
 use crate::{
     action::Action,
-    components::{container::Container, Component},
-    tui,
+    constants::Focus,
+    components::{help::Help, queue::Queue, search::Search, timer, timer::Timer, title::Title},
+    events::Key,
 };
-use crate::components::queue::Queue;
+use color_eyre::eyre::Result;
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use ratatui::{
+    backend::Backend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Span, Spans, Text},
+    widgets::{Block, BorderType, Borders, Paragraph},
+    Frame,
+};
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use crate::components::RenderableComponent;
 
-pub struct App {
-    pub tick_rate: f64,
-    pub frame_rate: f64,
-    pub should_quit: bool,
-    pub should_play: bool,
-    pub last_tick_key_events: Vec<KeyEvent>,
+#[derive(Default, Copy, Clone, PartialEq, Eq)]
+pub enum Mode {
+    #[default]
+    Normal,
+    WithQueue,
+    Search,
+    WithHelp,
+    Processing,
 }
 
-impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
-        Ok(Self {
-            tick_rate,
-            frame_rate,
-            should_quit: false,
-            should_play: false,
-            last_tick_key_events: Vec::new(),
-        })
+pub struct AppComponent<'app> {
+    help: Help,
+    //lyrics: Lyrics,
+    queue: Queue<'app>,
+    search: Search<'app>,
+    timer: Timer<'app>,
+    mode: Mode,
+    focus: Focus,
+}
+
+impl<'a> AppComponent<'a> {
+    pub fn new() -> Self {
+        Self {
+            help: Help::new(),
+            //lyrics: Lyrics::new(),
+            queue: Queue::new(),
+            search: Search::new(),
+            timer: Timer::new(),
+            mode: Mode::Normal,
+            focus: Focus::Lyrics,
+        }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        let (action_tx, mut action_rx) = mpsc::unbounded_channel();
+    pub fn render<B: Backend>(
+        &self,
+        f: &mut Frame<B>,
+        rect: Rect,
+        focused: bool,
+    ) -> anyhow::Result<()> {
+        let window = f.size();
 
-        let mut tui = tui::Tui::new()?;
-        tui.tick_rate(self.tick_rate);
-        tui.frame_rate(self.frame_rate);
-        tui.enter()?;
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),
+                Constraint::Percentage(100),
+                Constraint::Min(3),
+            ])
+            .split(rect);
 
+        let (header, body, footer) = (chunks[0], chunks[1], chunks[2]);
+
+        // Header
         const EMOJI_MARTINI: char = '\u{1F378}';
         const EMDASH: char = '\u{2014}';
 
-
-        let mut container = Container::new(
-            Queue::new(),
-            Search::new(),
+        let app_title = Title::new(
+            format!(
+                " {} CLIraoke {} Karaoke for the Command Line {} ",
+                EMOJI_MARTINI, EMDASH, EMOJI_MARTINI
+            )
+            .as_str(),
         );
+        app_title.render(f, header, false)?;
 
-        container.register_action_handler(action_tx.clone())?;
-        container.init()?;
+        // Body.
+        let lyrics_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(Color::Yellow));
 
-        loop {
-            if let Some(e) = tui.next().await {
-                match e {
-                    Event::Quit => action_tx.send(Action::Quit)?,
-                    Event::Tick => action_tx.send(Action::Tick)?,
-                    Event::Render => action_tx.send(Action::Render)?,
-                    Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-                    Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                        _ => {
-                            if let Some(action) = container.handle_events(Some(e.clone()))? {
-                                action_tx.send(action.clone())?;
-                            }
-                        }
-                    },
-                  _ => {}
+
+        // // The layout of the app is determined by the mode.
+        // match self.mode {
+        //     Mode::WithQueue => {
+        //         let inner_rects = Layout::default()
+        //             .direction(Direction::Horizontal)
+        //             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+        //             .split(chunks[1]);
+        //
+        //         let mut queue = Queue::new();
+        //         f.render_widget(lyrics_block, inner_rects[0]);
+        //         f.render_stateful_widget(queue, inner_rects[1], &mut queue);
+        //     }
+        //     Mode::WithHelp => {
+        //         f.render_widget(lyrics_block, chunks[1]);
+        //
+        //         let mut help = Help::new();
+        //         help.draw(f, chunks[2])?;
+        //     }
+        //     Mode::Search => {
+        //         let mut search = Search::new();
+        //         search.draw(f, chunks[1])?;
+        //
+        //         let mut t = timer::Timer::new();
+        //         t.draw(f, chunks[2])?;
+        //     }
+        //     _ => {
+        //         f.render_widget(lyrics_block, chunks[1]);
+        //
+        //         // Add Timer to the footer.
+        //         let mut t = timer::Timer::new();
+        //         t.draw(f, chunks[2])?;
+        //     }
+        // }
+
+        // Footer.
+        self.timer.render(f, footer, focused)?;
+    }
+
+    fn focus(&self) -> Focus {
+        self.focus.clone()
+    }
+
+    pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
+        if self.components_event(key).await?.is_consumed() {
+            return Ok(EventState::Consumed);
+        };
+
+        if self.move_focus(key).await?.is_consumed() {
+            return Ok(EventState::Consumed);
+        };
+
+        Ok(EventState::NotConsumed)
+    }
+
+    async fn components_event(&mut self, key: Key) -> Result<EventState> {
+        match self.focus {
+            // Focus::Lyrics => {
+            //     if self.lyrics.event(key).await?.is_consumed() {
+            //         return Ok(EventState::Consumed);
+            //     }
+            // }
+            Focus::Queue => {
+                if self.queue.event(key).await?.is_consumed() {
+                    return Ok(EventState::Consumed);
                 }
             }
-
-            while let Ok(action) = action_rx.try_recv() {
-                if action != Action::Tick && action != Action::Render {
-                    log::debug!("{action:?}");
+            Focus::SearchBar => {
+                if self.search.event(key).await?.is_consumed() {
+                    return Ok(EventState::Consumed);
                 }
-                match action {
-                    Action::Tick => {
-                        self.last_tick_key_events.drain(..);
-                    }
-                    Action::Quit => self.should_quit = true,
-                    Action::TogglePlay => self.should_play = !self.should_play,
-                    Action::Resize(w, h) => {
-                        tui.resize(Rect::new(0, 0, w, h))?;
-                        tui.draw(|f| {
-                            container.draw(f, f.size()).unwrap();
-                        })?;
-                    }
-                    Action::Render => {
-                        tui.draw(|f| {
-                            container.draw(f, f.size()).unwrap();
-                        })?;
-                    }
-                    _ => {}
-                }
-
-                container.update(action.clone())?;
             }
-            if self.should_play {
-                tui.suspend()?;
-                action_tx.send(Action::TogglePlay)?;
-                tui = tui::Tui::new()?;
-                tui.tick_rate(self.tick_rate);
-                tui.frame_rate(self.frame_rate);
-                tui.enter()?;
-            } else if self.should_quit {
-                tui.stop()?;
-                break;
+            _ => {}
+        }
+        Ok(EventState::NotConsumed)
+    }
+
+    async fn move_focus(&mut self, key: Key) -> Result<EventState> {
+        match self.focus {
+            // Focus::Lyrics => {
+            //     if key == Key::Esc.down {
+            //         self.focus = self.lyrics.active_focus();
+            //     }
+            // }
+            Focus::Queue => {
+                if key == Key::Char('u').up {
+                    self.focus = Focus::Queue
+                }
+            }
+            Focus::SearchBar => {
+                if key == Key::Char('/').up || key == Key::Enter.up {
+                    self.focus = Focus::SearchBar
+                }
+            }
+            _ => {
+                self.focus = Focus::Lyrics;
             }
         }
-        tui.exit()?;
-        Ok(())
+        Ok(EventState::NotConsumed)
     }
 }

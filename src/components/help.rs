@@ -1,6 +1,4 @@
-use super::{queue, timer, Component, Frame};
-use crate::action::Action;
-use color_eyre::eyre::Result;
+use super::RenderableComponent;
 use ratatui::{prelude::*, widgets::*};
 use ratatui::{prelude::*, widgets::*};
 
@@ -12,12 +10,13 @@ impl Help {
   }
 }
 
-impl Component for Help {
-  fn update(&mut self, _action: Action) -> Result<Option<Action>> {
-    Ok(None)
-  }
-
-  fn draw(&mut self, frame: &mut Frame<'_>, rect: Rect) -> Result<()> {
+impl RenderableComponent for Help {
+  fn render<B: Backend>(
+    &self,
+    f: &mut ratatui::Frame<B>,
+    rect: Rect,
+    focused: bool,
+  ) -> anyhow::Result<()> {
     let help_text = Line::from(vec![
       "Press ".into(),
       Span::styled("u ", Style::default().fg(Color::Red)),
@@ -39,7 +38,7 @@ impl Component for Help {
       .block(Block::default().borders(Borders::ALL).title("Help"))
       .alignment(Alignment::Center);
 
-    frame.render_widget(help_text, rect);
+    f.render_widget(help_text, rect);
 
     Ok(())
   }
