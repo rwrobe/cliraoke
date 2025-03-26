@@ -49,17 +49,6 @@ impl Container {
             action_tx: None,
         }
     }
-
-    pub fn show_help(&mut self) {
-        match self.mode {
-            Mode::WithHelp => {
-                self.mode = Mode::Normal;
-            }
-            _ => {
-                self.mode = Mode::WithHelp;
-            }
-        }
-    }
 }
 
 impl Component for Container {
@@ -70,39 +59,23 @@ impl Component for Container {
 
     fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
         // Child components have first priority at handling events.
-        let action = match self.mode {
-            Mode::Normal => {
-                if let Some(action) = self.queue.handle_events(event)? {
-                    self.update(action)?
-                } else {
-                    None
+        let action = match event {
+            Some(Event::Key(key_event)) => {
+                self.handle_key_events(key_event)?
+            },
+            _ => match self.mode {
+                    Mode::WithQueue => self.queue.handle_events(event)?,
+                    Mode::Search => self.search.handle_events(event)?,
+                    _ => None,
                 }
-            }
-            Mode::WithQueue => {
-                if let Some(action) = self.queue.handle_events(event)? {
-                    self.update(action)?
-                } else {
-                    None
-                }
-            }
-            Mode::Search => {
-                if let Some(action) = self.search.handle_events(event)? {
-                    self.update(action)?
-                } else {
-                    None
-                }
-            }
-            _ => None,
         };
 
         Ok(action)
     }
 
     fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        let action = match self.mode {
-            Mode::Search => self.search.handle_key_events(key)?,
-            Mode::WithQueue => self.queue.handle_key_events(key)?,
-            _ => Some(match key.code {
+        let normalMode = |key: KeyEvent| -> Option<Action> {
+            let action = match key.code {
                 KeyCode::Char('q') => Action::Quit,
                 KeyCode::Char('h') => Action::ToggleHelp,
                 KeyCode::Char('/') => Action::ToggleSearch,
@@ -117,7 +90,31 @@ impl Component for Container {
                     _ => Action::Noop,
                 },
                 _ => Action::Noop,
-            })
+            };
+
+            Some(action)
+        };
+
+        let action = match self.mode {
+            Mode::Search => {
+                // Handle search key events.
+                if let Some(action) = self.search.handle_key_events(key)? {
+                    return Ok(Some(action));
+                }
+
+                // If result is None, handle with the parent component.
+                normalMode(key)
+            },
+            Mode::WithQueue => {
+                // Handle search key events.
+                if let Some(action) = self.queue.handle_key_events(key)? {
+                    return Ok(Some(action));
+                }
+
+                // If result is None, handle with the parent component.
+                normalMode(key)
+            },
+            _ => normalMode(key),
         };
 
         Ok(action)
@@ -125,7 +122,14 @@ impl Component for Container {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::ToggleHelp => self.show_help(),
+            Action::ToggleHelp => match self.mode {
+                Mode::WithHelp => {
+                    self.mode = Mode::Normal;
+                }
+                _ => {
+                    self.mode = Mode::WithHelp;
+                }
+            }
             Action::GoHome => {
                 self.mode = Mode::Normal;
             }

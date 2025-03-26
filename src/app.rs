@@ -54,6 +54,9 @@ impl App {
             Search::new(),
         );
 
+        container.register_action_handler(action_tx.clone())?;
+        container.init()?;
+
         loop {
             if let Some(e) = tui.next().await {
                 match e {
@@ -63,7 +66,9 @@ impl App {
                     Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
                     Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
                         _ => {
-                            container.handle_events(Some(Event::Key(key)))?;
+                            if let Some(action) = container.handle_events(Some(e.clone()))? {
+                                action_tx.send(action.clone())?;
+                            }
                         }
                     },
                   _ => {}
