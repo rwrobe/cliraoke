@@ -83,7 +83,7 @@ impl AudioService for YouTube {
         Ok(audios)
     }
 
-    fn fetch(&self, id: &str) -> anyhow::Result<AudioResult> {
+    async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult> {
         let audio_url = get_youtube_audio_url(id);
         match audio_url {
             Some(url) => Ok(AudioResult {
