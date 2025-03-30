@@ -1,3 +1,4 @@
+use strum::Display;
 use super::{Frame, RenderableComponent};
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
@@ -7,9 +8,17 @@ use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
+#[derive(Default, PartialEq, Display)]
+enum InputMode {
+    Nav,
+    #[default]
+    Input,
+}
+
 #[derive(Default)]
 pub struct Search<'a> {
     query: Input,
+    mode : InputMode,
     audio_results: StatefulList<'a>,
     lyric_results: StatefulList<'a>,
 }
@@ -18,6 +27,7 @@ impl Search<'_> {
     pub fn new() -> Self {
         Self {
             query: Input::default(),
+            mode: InputMode::Input,
             audio_results: StatefulList::default(),
             lyric_results: StatefulList::default(),
         }
@@ -33,17 +43,23 @@ impl Search<'_> {
             return;
         }
 
-        // TODO: search for songs
+        self.query.reset()
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
+       if self.mode == InputMode::Nav {
+            return Ok(EventState::NotConsumed);
+        }
+
         match key {
             k if k == Key::Enter => {
                 self.search();
+                self.mode = InputMode::Nav;
                 return Ok(EventState::Consumed);
             }
             k if k == Key::Char('/') => {
                 self.query.reset();
+                self.mode = InputMode::Input;
                 return Ok(EventState::Consumed);
             }
             k if k == Key::Esc => {
@@ -52,6 +68,7 @@ impl Search<'_> {
             }
             Key::Char(v) => {
                 self.add_to_query(KeyEvent::new(KeyCode::Char(v), KeyModifiers::NONE));
+                return Ok(EventState::Consumed);
             }
             _ => {}
         }
@@ -86,7 +103,7 @@ impl RenderableComponent for Search<'_> {
                                 .add_modifier(Modifier::BOLD)
                                 .fg(Color::LightRed),
                         ),
-                        Span::styled(" to submit)", Style::default().fg(Color::DarkGray)),
+                        Span::styled(format!(" to submit) {}", self.mode), Style::default().fg(Color::DarkGray)),
                     ])),
             );
 

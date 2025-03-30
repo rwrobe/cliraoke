@@ -10,6 +10,8 @@ use ratatui::{
     },
     Frame,
 };
+use ratatui::layout::Alignment;
+use ratatui::prelude::Line;
 
 #[derive(Default)]
 pub struct Lyrics {
@@ -36,6 +38,8 @@ impl RenderableComponent for Lyrics {
         focused: bool,
     ) -> anyhow::Result<()> {
         let block = Block::default()
+            .title(Line::from(" Song by Artist "))
+            .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Yellow));
