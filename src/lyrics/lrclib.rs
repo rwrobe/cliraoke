@@ -51,7 +51,7 @@ impl LyricsService for LRCLib {
                 }
             });
 
-        Ok(lyrics)
+        Ok(lyrics.collect())
     }
 
     async fn fetch(&self, id: &str) -> anyhow::Result<String> {
