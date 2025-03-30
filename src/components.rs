@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tui::{backend::Backend, layout::Rect, Frame};
+use ratatui::{backend::Backend, layout::Rect, Frame};
 
 mod lyrics;
 pub(crate) mod help;

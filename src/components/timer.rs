@@ -1,3 +1,5 @@
+use ratatui::style::Stylize;
+use ratatui::widgets::block::Title;
 use std::time::{Duration, Instant};
 
 use color_eyre::eyre::Result;
@@ -9,7 +11,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Paragraph},
     Frame,
 };
-
+use ratatui::widgets::block;
 use super::{ RenderableComponent};
 use crate::{action::Action};
 
@@ -19,11 +21,11 @@ pub enum Ticker {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Timer<'song> {
-    song_remaining_time: Duration<'song>,
+pub struct Timer {
+    song_remaining_time: Duration,
 }
 
-impl<'song> Timer<'song> {
+impl Timer {
     pub fn new() -> Self {
         Self {
             song_remaining_time: Duration::from_secs(0),
@@ -36,7 +38,7 @@ impl<'song> Timer<'song> {
     }
 }
 
-impl<'song> RenderableComponent for Timer<'song> {
+impl RenderableComponent for Timer {
     fn render<B: Backend>(
         &self,
         f: &mut Frame<B>,

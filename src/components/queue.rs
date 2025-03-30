@@ -24,13 +24,13 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::events::{EventState, Key};
 
 #[derive(Default)]
-pub struct Queue<'app> {
-    pub songs: SongList<'app>,
+pub struct Queue {
+    pub songs: SongList,
     pub current_song: Option<Song>,
     pub current_song_index: usize,
 }
 
-impl<'app> Queue<'app> {
+impl Queue {
     pub fn new() -> Self {
         Self::default()
     }
@@ -57,7 +57,7 @@ impl<'app> Queue<'app> {
     }
 }
 
-impl<'app> RenderableComponent for Queue<'app> {
+impl RenderableComponent for Queue {
     fn render<B: Backend>(
         &self,
         f: &mut Frame<B>,

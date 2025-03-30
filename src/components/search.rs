@@ -1,29 +1,27 @@
 use super::{queue, timer, Frame, RenderableComponent};
+use crate::components::stateful_list::StatefulList;
 use crate::{
     action::Action,
     events::{EventState, Key},
 };
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use futures::channel::mpsc::UnboundedSender;
 use futures::SinkExt;
 use log::error;
+use ratatui::widgets::{List, ListState};
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
-use ratatui::{
-    widgets::{List, ListState}
-};
-use crate::components::stateful_list::StatefulList;
 
 #[derive(Default)]
-pub struct Search<'search> {
+pub struct Search<'a> {
     query: Input,
-    audio_results: StatefulList<'search>,
-    lyric_results: StatefulList<'search>,
+    audio_results: StatefulList<'a>,
+    lyric_results: StatefulList<'a>,
 }
 
-impl<'a> Search<'a> {
+impl Search<'_> {
     pub fn new() -> Self {
         Self {
             query: Input::default(),
@@ -59,18 +57,19 @@ impl<'a> Search<'a> {
                 self.query.reset();
                 return Ok(EventState::Consumed);
             }
-            _ => {
-                self.add_to_query(key.into());
+            Key::Char(v) => {
+                self.add_to_query(KeyEvent::new(KeyCode::Char(v), KeyModifiers::NONE));
             }
+            _ => {}
         }
         Ok(EventState::NotConsumed)
     }
 }
 
-impl<'search> RenderableComponent for Search<'search> {
+impl RenderableComponent for Search<'_> {
     fn render<B: Backend>(
         &self,
-        f: &mut ratatui::Frame<B>,
+        f: &mut Frame<B>,
         rect: Rect,
         focused: bool,
     ) -> anyhow::Result<()> {

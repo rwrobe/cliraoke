@@ -29,17 +29,17 @@ pub enum Mode {
     Processing,
 }
 
-pub struct AppComponent<'app> {
+pub struct AppComponent<'a> {
     help: Help,
     //lyrics: Lyrics,
-    queue: Queue<'app>,
-    search: Search<'app>,
-    timer: Timer<'app>,
+    queue: Queue,
+    search: Search<'a>,
+    timer: Timer,
     mode: Mode,
     focus: Focus,
 }
 
-impl<'a> AppComponent<'a> {
+impl AppComponent<'_> {
     pub fn new() -> Self {
         Self {
             help: Help::new(),
@@ -127,6 +127,8 @@ impl<'a> AppComponent<'a> {
 
         // Footer.
         self.timer.render(f, footer, focused)?;
+
+        Ok(())
     }
 
     fn focus(&self) -> Focus {
@@ -134,11 +136,11 @@ impl<'a> AppComponent<'a> {
     }
 
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
-        if self.components_event(key).await?.is_consumed() {
+        if self.components_event(key).await.unwrap().is_consumed() {
             return Ok(EventState::Consumed);
         };
 
-        if self.move_focus(key).await?.is_consumed() {
+        if self.move_focus(key).await.unwrap().is_consumed() {
             return Ok(EventState::Consumed);
         };
 
@@ -175,12 +177,12 @@ impl<'a> AppComponent<'a> {
             //     }
             // }
             Focus::Queue => {
-                if key == Key::Char('u').up {
+                if key == Key::Char('u') {
                     self.focus = Focus::Queue
                 }
             }
             Focus::SearchBar => {
-                if key == Key::Char('/').up || key == Key::Enter.up {
+                if key == Key::Char('/') || key == Key::Enter {
                     self.focus = Focus::SearchBar
                 }
             }

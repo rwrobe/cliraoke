@@ -1,4 +1,4 @@
-use tui::widgets::{ListItem, ListState};
+use ratatui::widgets::{ListItem, ListState};
 
 #[derive(Default)]
 pub struct StatefulList<'a> {
@@ -6,9 +6,9 @@ pub struct StatefulList<'a> {
     pub items: Vec<ListItem<'a>>,
 }
 
-impl<'a> StatefulList<'a> {
-    pub fn with_items(items: Vec<ListItem<'a>>, state: Option<ListState>) -> Self {
-        Self {
+impl StatefulList<'_> {
+    pub fn with_items<'a>(items: Vec<ListItem<'a>>, state: Option<ListState>) -> StatefulList<'a> {
+        StatefulList {
             state: state.unwrap_or_default(),
             items,
         }

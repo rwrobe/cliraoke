@@ -20,7 +20,7 @@ use crossterm::{
 };
 use events::{Event, Events, Key};
 use std::io;
-use tui::{backend::CrosstermBackend, Terminal};
+use ratatui::{backend::CrosstermBackend, Terminal};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
 
   loop {
     terminal.draw(|f| {
-      if let Err(err) = app.render(f) {
+      if let Err(err) = app.render(f, f.size(), true) {
         println!("Error thrown: {:?}", err);
         std::process::exit(1);
       }
