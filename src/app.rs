@@ -146,6 +146,11 @@ impl AppComponent<'_> {
         );
         app_title.render(f, header, false)?;
 
+        let lyrics_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(Color::Yellow));
+
         // The layout of the body is determined by focus.
         match self.focus {
             Focus::Queue => {
@@ -154,18 +159,18 @@ impl AppComponent<'_> {
                     .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
                     .split(chunks[1]);
 
+                let (left, right) = (inner_rects[0], inner_rects[1]);
+
+                f.render_widget(lyrics_block, left);
+
                 self.queue
-                    .render(f, inner_rects[1], matches!(self.focus(), Focus::Queue))?;
+                    .render(f, right, matches!(self.focus(), Focus::Queue))?;
             }
             Focus::Search => {
                 self.search
                     .render(f, body, matches!(self.focus(), Focus::Queue))?;
             }
             _ => {
-                let lyrics_block = Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(Color::Yellow));
                 f.render_widget(lyrics_block, body);
             }
         }
