@@ -3,7 +3,7 @@ use crate::app::GlobalState;
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
 use crate::models::song::Song;
-use crate::state::InputMode;
+use crate::state::{Focus, InputMode};
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{prelude::*, widgets::*};
@@ -64,7 +64,11 @@ impl Search<'_> {
         match key {
             k if k == Key::Enter => {
                 self.search();
-                self.global_state.lock().unwrap().mode = InputMode::Nav;
+                {
+                    let mut global_state = self.global_state.lock().unwrap();
+                    global_state.mode = InputMode::Nav;
+                    global_state.focus = Focus::Queue;
+                }
                 return Ok(EventState::Consumed);
             }
             k if k == Key::Char('/') => {

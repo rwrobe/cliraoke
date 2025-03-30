@@ -1,10 +1,12 @@
 use crate::components::RenderableComponent;
 use crate::events::EventState;
+use crate::models::song::SongList;
+pub(crate) use crate::state::GlobalState;
+use crate::state::{Focus, InputMode};
 use crate::{
     components::{
         help::Help, lyrics::Lyrics, queue::Queue, search::Search, timer::Timer, title::Title,
     },
-    constants::Focus,
     events::Key,
 };
 use color_eyre::eyre::Result;
@@ -16,9 +18,6 @@ use ratatui::{
 use std::cmp::PartialEq;
 use std::sync::{Arc, Mutex};
 use strum::Display;
-use crate::models::song::SongList;
-pub(crate) use crate::state::GlobalState;
-use crate::state::InputMode;
 
 pub struct AppComponent<'a> {
     help: Help,
@@ -26,7 +25,6 @@ pub struct AppComponent<'a> {
     queue: Queue,
     search: Search<'a>,
     timer: Timer,
-    focus: Focus,
     state: Arc<Mutex<GlobalState>>,
 }
 
@@ -39,21 +37,14 @@ impl AppComponent<'_> {
             queue: Queue::new(global_state.clone()),
             search: Search::new(global_state.clone()),
             timer: Timer::new(),
-            focus: Focus::Home,
             state: global_state.clone(),
         }
     }
 
-    fn toggle_focus(&mut self, focus: Focus) {
-        if self.focus == focus {
-            self.focus = Focus::Home;
-        }
-
-        self.focus = focus;
-    }
-
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
-        match self.focus.clone() {
+        let focus = self.state.lock().unwrap().focus.clone();
+
+        match focus {
             Focus::Queue => {
                 if self.queue.event(key).await.unwrap().is_consumed() {
                     return Ok(EventState::Consumed);
@@ -61,7 +52,7 @@ impl AppComponent<'_> {
 
                 match key {
                     Key::Char('u') => {
-                        self.focus = Focus::Home;
+                        self.state.lock().unwrap().focus = Focus::Home;
                     }
                     _ => {}
                 }
@@ -73,14 +64,14 @@ impl AppComponent<'_> {
 
                 match key {
                     Key::Char('/') | Key::Esc => {
-                        self.focus = Focus::Home;
+                        self.state.lock().unwrap().focus = Focus::Home;
                     }
                     _ => {}
                 }
             }
             Focus::Help => match key {
                 Key::Esc | Key::Char('h') => {
-                    self.focus = Focus::Home;
+                    self.state.lock().unwrap().focus = Focus::Home;
                 }
                 _ => {}
             },
@@ -91,17 +82,18 @@ impl AppComponent<'_> {
             }
             _ => match key {
                 Key::Esc => {
-                    self.focus = Focus::Home;
+                    self.state.lock().unwrap().focus = Focus::Home;
                 }
                 Key::Char('h') => {
-                    self.focus = Focus::Help;
+                    self.state.lock().unwrap().focus = Focus::Help;
                 }
                 Key::Char('u') => {
-                    self.focus = Focus::Queue;
+                    self.state.lock().unwrap().focus = Focus::Queue;
                 }
                 Key::Char('/') => {
-                    self.focus = Focus::Search;
-                    self.state.lock().unwrap().mode = InputMode::Input;
+                    let mut state = self.state.lock().unwrap();
+                    state.mode = InputMode::Input;
+                    state.focus = Focus::Search;
                 }
                 _ => {}
             },
@@ -110,12 +102,7 @@ impl AppComponent<'_> {
         Ok(EventState::NotConsumed)
     }
 
-    pub fn render<B: Backend>(
-        &self,
-        f: &mut Frame<B>,
-        rect: Rect,
-        focused: bool,
-    ) -> anyhow::Result<()> {
+    pub fn render<B: Backend>(&self, f: &mut Frame<B>, rect: Rect) -> anyhow::Result<()> {
         let window = f.size();
 
         let chunks = Layout::default()
@@ -143,7 +130,8 @@ impl AppComponent<'_> {
         app_title.render(f, header, self.state.clone())?;
 
         // The layout of the body is determined by focus.
-        match self.focus {
+        let focus = self.state.lock().unwrap().focus.clone();
+        match focus {
             Focus::Queue => {
                 let inner_rects = Layout::default()
                     .direction(Direction::Horizontal)
@@ -164,7 +152,7 @@ impl AppComponent<'_> {
         }
 
         // Footer.
-        match self.focus {
+        match focus {
             Focus::Help => {
                 self.help.render(f, footer, self.state.clone())?;
             }
@@ -176,12 +164,9 @@ impl AppComponent<'_> {
         Ok(())
     }
 
-    fn focus(&self) -> Focus {
-        self.focus.clone()
-    }
-
     async fn components_event(&mut self, key: Key) -> Result<EventState> {
-        match self.focus {
+        let focus = self.state.lock().unwrap().focus.clone();
+        match focus {
             // Focus::Lyrics => {
             //     if self.lyrics.event(key).await?.is_consumed() {
             //         return Ok(EventState::Consumed);
@@ -204,7 +189,8 @@ impl AppComponent<'_> {
 
     // TODO
     async fn move_focus(&mut self, key: Key) -> Result<EventState> {
-        match self.focus {
+        let focus = self.state.lock().unwrap().focus.clone();
+        match focus {
             // Focus::Lyrics => {
             //     if key == Key::Esc.down {
             //         self.focus = self.lyrics.active_focus();
@@ -212,16 +198,16 @@ impl AppComponent<'_> {
             // }
             Focus::Queue => {
                 if key == Key::Char('u') {
-                    self.focus = Focus::Queue
+                    self.state.lock().unwrap().focus = Focus::Queue
                 }
             }
             Focus::Search => {
                 if key == Key::Char('/') || key == Key::Enter {
-                    self.focus = Focus::Search
+                    self.state.lock().unwrap().focus = Focus::Search
                 }
             }
             _ => {
-                self.focus = Focus::Lyrics;
+                self.state.lock().unwrap().focus = Focus::Lyrics;
             }
         }
         Ok(EventState::NotConsumed)

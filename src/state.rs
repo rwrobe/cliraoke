@@ -8,12 +8,24 @@ pub enum InputMode {
     Input,
 }
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum Focus {
+    Help,
+    #[default]
+    Home,
+    Lyrics,
+    Queue,
+    Search,
+    Timer,
+}
+
 #[derive(Default, PartialEq)]
 pub struct GlobalState {
     pub(crate) current_song: Option<String>,
     pub(crate) current_song_index: usize,
     pub(crate) songs: SongList,
     pub(crate) mode: InputMode,
+    pub(crate) focus: Focus,
 }
 
 impl GlobalState {
@@ -27,6 +39,7 @@ impl GlobalState {
             current_song_index: 0,
             songs: Vec::new(),
             mode: InputMode::Nav,
+            focus: Focus::Home,
         }
     }
 }

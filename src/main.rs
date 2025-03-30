@@ -10,7 +10,6 @@ mod models;
 mod util;
 mod events;
 mod app;
-mod constants;
 mod state;
 
 use anyhow::Result;
@@ -37,7 +36,7 @@ async fn main() -> Result<()> {
 
   loop {
     terminal.draw(|f| {
-      if let Err(err) = app.render(f, f.size(), true) {
+      if let Err(err) = app.render(f, f.size()) {
         println!("Error thrown: {:?}", err);
         std::process::exit(1);
       }
