@@ -3,7 +3,6 @@
 #![allow(unused_variables)]
 
 // ANCHOR: all
-pub mod action;
 pub mod cli;
 pub mod components;
 mod models;
@@ -11,6 +10,8 @@ mod util;
 mod events;
 mod app;
 mod state;
+mod audio;
+mod lyrics;
 
 use anyhow::Result;
 use app::AppComponent;
@@ -21,9 +22,15 @@ use crossterm::{
 use events::{Event, Events, Key};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
+use dotenv::dotenv;
+use crate::audio::youtube::YouTube;
+use crate::lyrics::lrclib::LRCLib;
+
+const ENV_API_KEY: &str = "YOUTUBE_API_KEY";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+  dotenv().ok();
   setup_terminal()?;
 
   let stdout = io::stdout();
@@ -31,7 +38,16 @@ async fn main() -> Result<()> {
   let mut terminal = Terminal::new(backend)?;
   let events = Events::new(200);
 
-  let mut app = AppComponent::new();
+
+  let api_key = dotenv::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
+  // Create lyrics provider.
+  let lyrics = LRCLib::new();
+  let audio = YouTube::new(api_key);
+
+  let mut app = AppComponent::new(
+    &lyrics,
+    &audio,
+  );
   terminal.clear()?;
 
   loop {

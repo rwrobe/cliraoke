@@ -1,7 +1,9 @@
 use super::{Frame, RenderableComponent};
 use crate::app::GlobalState;
+use crate::audio::AudioService;
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
+use crate::lyrics::LyricsService;
 use crate::models::song::Song;
 use crate::state::{Focus, InputMode};
 use color_eyre::eyre::Result;
@@ -13,18 +15,28 @@ use tui_input::Input;
 
 #[derive(Default)]
 pub struct Search<'a> {
-    query: Input,
+    audio_provider: &'a dyn AudioService,
     audio_results: StatefulList<'a>,
     lyric_results: StatefulList<'a>,
+    lyrics_provider: &'a dyn LyricsService,
+
+    query: Input,
     global_state: Arc<Mutex<GlobalState>>,
 }
 
 impl Search<'_> {
-    pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
+    pub fn new(
+        state: Arc<Mutex<GlobalState>>,
+        lp: &dyn LyricsService,
+        ap: &dyn AudioService,
+    ) -> Self {
         Self {
-            query: Input::default(),
+            audio_provider: ap,
             audio_results: StatefulList::default(),
             lyric_results: StatefulList::default(),
+            lyrics_provider: lp,
+
+            query: Input::default(),
             global_state: state,
         }
     }
@@ -33,10 +45,22 @@ impl Search<'_> {
         self.query.handle_event(&crossterm::event::Event::Key(key));
     }
 
-    fn search(&mut self) {
+    async fn search(&mut self) {
         let query = self.query.value();
         if query.is_empty() {
             return;
+        }
+
+        // Search audio.
+        let audio_results = self.audio_provider.search(query).await;
+        if audio_results.len() {
+            self.audio_results.update(audio_results)?;
+        }
+
+        // Search lyrics.
+        let lyric_results = self.lyrics_provider.search(query).await;
+        if lyric_results.len() {
+            self.lyric_results.update(lyric_results)?;
         }
 
         {
@@ -63,7 +87,7 @@ impl Search<'_> {
 
         match key {
             k if k == Key::Enter => {
-                self.search();
+                self.search().await;
                 {
                     let mut global_state = self.global_state.lock().unwrap();
                     global_state.mode = InputMode::Nav;
