@@ -7,6 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
+use crate::app::GlobalState;
 
 #[derive(Default, PartialEq, Display)]
 enum InputMode {
@@ -81,7 +82,7 @@ impl RenderableComponent for Search<'_> {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        focused: bool,
+        state: GlobalState,
     ) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.query.visual_scroll(width as usize);

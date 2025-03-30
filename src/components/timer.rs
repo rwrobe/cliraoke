@@ -10,6 +10,7 @@ use ratatui::{
     widgets::Block,
     Frame,
 };
+use crate::app::GlobalState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
@@ -39,7 +40,7 @@ impl RenderableComponent for Timer {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        focused: bool,
+        state: GlobalState,
     ) -> anyhow::Result<()> {
         let rects = Layout::default()
             .direction(Direction::Vertical)

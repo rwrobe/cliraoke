@@ -12,6 +12,7 @@ use ratatui::{
 };
 use ratatui::layout::Alignment;
 use ratatui::prelude::Line;
+use crate::app::GlobalState;
 
 #[derive(Default)]
 pub struct Lyrics {
@@ -35,7 +36,7 @@ impl RenderableComponent for Lyrics {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        focused: bool,
+        state: GlobalState,
     ) -> anyhow::Result<()> {
         let block = Block::default()
             .title(Line::from(" Song by Artist "))

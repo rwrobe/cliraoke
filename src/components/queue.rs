@@ -15,6 +15,7 @@ use ratatui::{
     },
     Frame,
 };
+use crate::app::GlobalState;
 
 #[derive(Default)]
 pub struct Queue {
@@ -50,7 +51,7 @@ impl RenderableComponent for Queue {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        focused: bool,
+        state: GlobalState,
     ) -> anyhow::Result<()> {
         let block = Block::new()
             .title(Line::from(format!(

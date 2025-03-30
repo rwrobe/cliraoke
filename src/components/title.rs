@@ -1,5 +1,5 @@
 use ratatui::{prelude::*, widgets::*};
-
+use crate::app::GlobalState;
 use super::RenderableComponent;
 
 #[derive(Default)]
@@ -20,7 +20,7 @@ impl RenderableComponent for Title {
         &self,
         f: &mut ratatui::Frame<B>,
         rect: Rect,
-        focused: bool,
+        state: GlobalState,
     ) -> anyhow::Result<()> {
         {
             f.render_widget(

@@ -14,6 +14,13 @@ use ratatui::{
     Frame,
 };
 use std::cmp::PartialEq;
+use crate::models::song::SongList;
+
+pub struct GlobalState {
+    pub(crate) current_song: Option<String>,
+    pub(crate) current_song_index: usize,
+    pub(crate) songs: SongList,
+}
 
 pub struct AppComponent<'a> {
     help: Help,
@@ -22,6 +29,7 @@ pub struct AppComponent<'a> {
     search: Search<'a>,
     timer: Timer,
     focus: Focus,
+    state: GlobalState,
 }
 
 impl PartialEq for Focus {
@@ -39,6 +47,11 @@ impl AppComponent<'_> {
             search: Search::new(),
             timer: Timer::new(),
             focus: Focus::Home,
+            state: GlobalState {
+                current_song: None,
+                current_song_index: 0,
+                songs: Vec::new(),
+            },
         }
     }
 
@@ -149,26 +162,24 @@ impl AppComponent<'_> {
 
                 let (left, right) = (inner_rects[0], inner_rects[1]);
 
-                self.lyrics.render(f, left, false)?;
-                self.queue
-                    .render(f, right, matches!(self.focus(), Focus::Queue))?;
+                self.lyrics.render(f, left, self.state)?;
+                self.queue.render(f, right, self.state)?;
             }
             Focus::Search => {
-                self.search
-                    .render(f, body, matches!(self.focus(), Focus::Queue))?;
+                self.search.render(f, body, self.state)?;
             }
             _ => {
-                self.lyrics.render(f, body, false)?;
+                self.lyrics.render(f, body, self.state)?;
             }
         }
 
         // Footer.
         match self.focus {
             Focus::Help => {
-                self.help.render(f, footer, false)?;
+                self.help.render(f, footer, self.state)?;
             }
             _ => {
-                self.timer.render(f, footer, false)?;
+                self.timer.render(f, footer, self.state)?;
             }
         }
 
