@@ -19,23 +19,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use crate::components::RenderableComponent;
 
-#[derive(Default, Copy, Clone, PartialEq, Eq)]
-pub enum Mode {
-    #[default]
-    Normal,
-    WithQueue,
-    Search,
-    WithHelp,
-    Processing,
-}
-
 pub struct AppComponent<'a> {
     help: Help,
     //lyrics: Lyrics,
     queue: Queue,
     search: Search<'a>,
     timer: Timer,
-    mode: Mode,
     focus: Focus,
 }
 
@@ -47,8 +36,7 @@ impl AppComponent<'_> {
             queue: Queue::new(),
             search: Search::new(),
             timer: Timer::new(),
-            mode: Mode::Normal,
-            focus: Focus::Lyrics,
+            focus: Focus::Home,
         }
     }
 
@@ -84,49 +72,38 @@ impl AppComponent<'_> {
         );
         app_title.render(f, header, false)?;
 
-        // Body.
-        let lyrics_block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Yellow));
+        // The layout of the body is determined by focus.
+        match self.focus {
+            Focus::Queue => {
+                let inner_rects = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+                    .split(chunks[1]);
 
-
-        // // The layout of the app is determined by the mode.
-        // match self.mode {
-        //     Mode::WithQueue => {
-        //         let inner_rects = Layout::default()
-        //             .direction(Direction::Horizontal)
-        //             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
-        //             .split(chunks[1]);
-        //
-        //         let mut queue = Queue::new();
-        //         f.render_widget(lyrics_block, inner_rects[0]);
-        //         f.render_stateful_widget(queue, inner_rects[1], &mut queue);
-        //     }
-        //     Mode::WithHelp => {
-        //         f.render_widget(lyrics_block, chunks[1]);
-        //
-        //         let mut help = Help::new();
-        //         help.draw(f, chunks[2])?;
-        //     }
-        //     Mode::Search => {
-        //         let mut search = Search::new();
-        //         search.draw(f, chunks[1])?;
-        //
-        //         let mut t = timer::Timer::new();
-        //         t.draw(f, chunks[2])?;
-        //     }
-        //     _ => {
-        //         f.render_widget(lyrics_block, chunks[1]);
-        //
-        //         // Add Timer to the footer.
-        //         let mut t = timer::Timer::new();
-        //         t.draw(f, chunks[2])?;
-        //     }
-        // }
+                self.queue.render(f,inner_rects[1], matches!(self.focus(), Focus::Queue))?;
+            }
+            Focus::SearchBar => {
+                self.search.render(f,body, matches!(self.focus(), Focus::Queue))?;
+            }
+            _ => {
+                let lyrics_block = Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Yellow));
+                f.render_widget(lyrics_block, body);
+            }
+        }
 
         // Footer.
-        self.timer.render(f, footer, focused)?;
+        match self.focus {
+            Focus::Help => {
+                self.help.render(f, footer,false)?;
+            }
+            _ => {
+                self.timer.render(f, footer, false)?;
+            }
+        }
+
 
         Ok(())
     }
@@ -136,13 +113,42 @@ impl AppComponent<'_> {
     }
 
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
-        if self.components_event(key).await.unwrap().is_consumed() {
-            return Ok(EventState::Consumed);
-        };
-
-        if self.move_focus(key).await.unwrap().is_consumed() {
-            return Ok(EventState::Consumed);
-        };
+        match self.focus {
+            Focus::Home => {
+                match key{
+                    Key::Char('/') => {
+                        self.focus = Focus::SearchBar
+                    }
+                    Key::Char('u') => {
+                        self.focus = Focus::Queue
+                    }
+                    Key::Char('h') => {
+                        self.focus = Focus::Help
+                    }
+                    _ => {}
+                }
+            }
+            Focus::Queue => {
+                if self.queue.event(key).await.unwrap().is_consumed() {
+                    return Ok(EventState::Consumed);
+                }
+            }
+            Focus::SearchBar => {
+                if self.search.event(key).await.unwrap().is_consumed() {
+                    return Ok(EventState::Consumed);
+                }
+            }
+            Focus::Lyrics => {
+                // if self.lyrics.event(key).await?.is_consumed() {
+                //     return Ok(EventState::Consumed);
+                // }
+            }
+            _ => {}
+        }
+        //
+        // if self.move_focus(key).await.unwrap().is_consumed() {
+        //     return Ok(EventState::Consumed);
+        // };
 
         Ok(EventState::NotConsumed)
     }
@@ -169,6 +175,7 @@ impl AppComponent<'_> {
         Ok(EventState::NotConsumed)
     }
 
+    // TODO
     async fn move_focus(&mut self, key: Key) -> Result<EventState> {
         match self.focus {
             // Focus::Lyrics => {
