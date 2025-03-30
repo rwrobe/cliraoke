@@ -1,7 +1,9 @@
 use super::{Frame, RenderableComponent};
 use crate::app::GlobalState;
+use crate::audio::AudioService;
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
+use crate::lyrics::LyricsService;
 use crate::models::song::Song;
 use crate::state::{Focus, InputMode};
 use color_eyre::eyre::Result;
@@ -11,20 +13,29 @@ use std::sync::{Arc, Mutex};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
-#[derive(Default)]
 pub struct Search<'a> {
-    query: Input,
+    audio_service: &'a dyn AudioService,
     audio_results: StatefulList<'a>,
     lyric_results: StatefulList<'a>,
+    lyrics_service: &'a dyn LyricsService,
+
+    query: Input,
     global_state: Arc<Mutex<GlobalState>>,
 }
 
 impl Search<'_> {
-    pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
+    pub fn new(
+        state: Arc<Mutex<GlobalState>>,
+        lp: &dyn LyricsService,
+        ap: &dyn AudioService,
+    ) -> Self {
         Self {
-            query: Input::default(),
+            audio_service: ap,
             audio_results: StatefulList::default(),
             lyric_results: StatefulList::default(),
+            lyrics_service: lp,
+
+            query: Input::default(),
             global_state: state,
         }
     }
@@ -33,25 +44,51 @@ impl Search<'_> {
         self.query.handle_event(&crossterm::event::Event::Key(key));
     }
 
-    fn search(&mut self) {
+    async fn search(&mut self) {
         let query = self.query.value();
         if query.is_empty() {
             return;
         }
 
-        {
-            // Add it to the global state songs list.
-            let mut global_state = self.global_state.lock().unwrap();
-            global_state.songs.push(Song {
-                lyric_id: "".to_string(),
-                video_id: "".to_string(),
-                title: query.to_string(),
-                artist: "Unknown".to_string(),
-                synced_lyrics: "".to_string(),
-                lyric_map: None,
-                message: (),
-            })
+        // Search audio.
+        let audio_results = self.audio_service.search(query).await;
+        match audio_results {
+            Ok(results) => {
+                self.audio_results = StatefulList::with_items(results.into_iter().map(|r| {
+                    let item = ListItem::new(r.title);
+                    item
+                }).collect(), None);
+            }
+            Err(e) => {
+                println!("Error searching audio: {}", e);
+            }
         }
+
+        // Search lyrics.
+        let lyric_results = self.lyrics_service.search(query).await;
+        match lyric_results {
+            Ok(results) => {
+                self.lyric_results = StatefulList::with_items(results.into_iter().map(|r| {
+                    let item = ListItem::new(r.title);
+                    item
+                }).collect(), None);
+            }
+            Err(e) => {
+                println!("Error searching lyrics: {}", e);
+            }
+        }
+
+        // Add it to the global state songs list.
+        let mut global_state = self.global_state.lock().unwrap();
+        global_state.songs.push(Song {
+            lyric_id: "".to_string(),
+            video_id: "".to_string(),
+            title: query.to_string(),
+            artist: "Unknown".to_string(),
+            synced_lyrics: "".to_string(),
+            lyric_map: None,
+            message: (),
+        });
 
         self.query.reset()
     }
@@ -63,7 +100,7 @@ impl Search<'_> {
 
         match key {
             k if k == Key::Enter => {
-                self.search();
+                self.search().await;
                 {
                     let mut global_state = self.global_state.lock().unwrap();
                     global_state.mode = InputMode::Nav;

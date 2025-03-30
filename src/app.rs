@@ -18,8 +18,12 @@ use ratatui::{
 use std::cmp::PartialEq;
 use std::sync::{Arc, Mutex};
 use strum::Display;
+use crate::audio::AudioService;
+use crate::lyrics::LyricsService;
 
 pub struct AppComponent<'a> {
+    lyrics_provider: &'a dyn LyricsService,
+    audio_provider: &'a dyn AudioService,
     help: Help,
     lyrics: Lyrics,
     queue: Queue,
@@ -29,13 +33,15 @@ pub struct AppComponent<'a> {
 }
 
 impl AppComponent<'_> {
-    pub fn new() -> Self {
+    pub fn new(lp: &dyn LyricsService, ap: &dyn AudioService) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
+            lyrics_provider: lp,
+            audio_provider: ap,
             help: Help::new(),
             lyrics: Lyrics::new(),
             queue: Queue::new(global_state.clone()),
-            search: Search::new(global_state.clone()),
+            search: Search::new(global_state.clone(), lp, ap),
             timer: Timer::new(),
             state: global_state.clone(),
         }

@@ -1,3 +1,68 @@
+use crate::lyrics::{LyricsService, LyricsResult};
+
+pub struct LRCLib;
+
+impl LRCLib {
+    pub fn new() -> Self {
+        LRCLib
+    }
+}
+
+#[async_trait]
+impl LyricsService for LRCLib {
+    async fn search(&self, query: &str) -> anyhow::Result<Vec<LyricsResult>> {
+        let client = Client::new(); // Create a new HTTP client
+        // let mut lyrics = Vec::new(); // Initialize a vector to store videos
+        let base_url = "https://lrclib.net/api/search";
+        let url = format!("{}?q={}", base_url, query);
+
+        let response = client
+            .get(&url)
+            .header("Referer", "https://lrclib.net") // Add referer header
+            .send()
+            .await
+            .expect("should get lrclib response"); // Send the HTTP GET request
+
+        let json: Vec<Value> = response
+            .json()
+            .await
+            .expect("should parse the value as json"); // Parse the response body as JSON array
+
+
+        let lyrics = json
+            .iter()
+            .cloned()
+            .filter_map(|v| match serde_json::from_value::<LyricResponse>(v) {
+                Ok(lyric) => Some(lyric),
+                Err(e) => {
+                    println!("Failed to parse lyric: {}", e);
+                    None
+                }
+            })
+            .map(|l| {
+                let synced_lyric = l.synced_lyrics.unwrap_or("".to_owned());
+                let lyric_map = raw_to_lyrics_map(&synced_lyric).unwrap_or_default();
+                LyricsResult {
+                    id: l.id.to_string(),
+                    artist: l.artist_name,
+                    title: l.track_name,
+                    synced_lyrics: synced_lyric,
+                    lyric_map: Some(lyric_map),
+                }
+            });
+
+        Ok(lyrics)
+    }
+
+    async fn fetch(&self, id: &str) -> anyhow::Result<String> {
+        todo!()
+    }
+
+    fn play(&self, url: &str) {
+        todo!()
+    }
+}
+
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Deserializer};
@@ -5,8 +70,8 @@ use serde_json::{Number, Value};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 use std::{thread, u64};
-
-pub(crate) mod error;
+use async_trait::async_trait;
+use crate::audio::AudioResult;
 
 fn deserialize_u64<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
@@ -97,26 +162,6 @@ pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
         .collect();
 
     Ok(lyrics)
-}
-
-pub async fn fetch_lyrics(id: &str) -> anyhow::Result<Option<LyricsMap>> {
-    let url = format!("https://lrclib.net/api/get/{}", id);
-
-    let response = reqwest::get(&url).await?.json::<LyricResponse>().await?;
-
-    // Check if we have synced lyrics
-    if let Some(synced_lyrics) = response.synced_lyrics {
-        let lyrics_map = raw_to_lyrics_map(&synced_lyrics)?;
-        return Ok(Some(lyrics_map));
-    }
-
-    if let Some(synced_lyrics) = response.message.and_then(|m| m.synced_lyrics) {
-        let lyrics_map = raw_to_lyrics_map(&synced_lyrics)?;
-        return Ok(Some(lyrics_map));
-    }
-
-    // Print error where that is handled...
-    Err(anyhow::anyhow!("No synced lyrics found in response"))
 }
 
 pub fn display_synced_lyrics(lyrics_map: &BTreeMap<u64, String>) {

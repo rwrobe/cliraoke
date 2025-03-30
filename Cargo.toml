@@ -13,9 +13,13 @@ anyhow = "1.0.66"
 clap = { version = "4.4.5", features = ["std", "color", "help", "usage", "error-context", "suggestions", "derive", "cargo", "wrap_help", "unicode", "string", "unstable-styles"] }
 color-eyre = "0.6.2"
 crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
+dotenv = "0.15"
+reqwest = { version = "0.11", features = ["json", "blocking"] }
 ratatui = { version = "0.23.0", features = ["serde", "macros"] }
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 strum = { version = "0.25.0", features = ["derive"] }
 tokio = { version = "1.32.0", features = ["full"] }
 tui-input = { version = "0.8.0", features = ["serde"] }
+regex = "1.11.1"
+async-trait = "0.1.88"
