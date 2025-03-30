@@ -6,7 +6,7 @@ pub(crate) mod lrclib;
 type LyricsMap = std::collections::BTreeMap<u64, String>;
 
 #[derive(Debug)]
-struct LyricsResult {
+pub struct LyricsResult {
     pub id: String,
     pub title: String,
     pub artist: String,

@@ -23,11 +23,11 @@ pub struct Search<'a> {
     global_state: Arc<Mutex<GlobalState>>,
 }
 
-impl Search<'_> {
+impl<'b> Search<'b> {
     pub fn new(
         state: Arc<Mutex<GlobalState>>,
-        lp: &dyn LyricsService,
-        ap: &dyn AudioService,
+        lp: &'b (dyn LyricsService + 'b),
+        ap: &'b (dyn AudioService + 'b),
     ) -> Self {
         Self {
             audio_service: ap,

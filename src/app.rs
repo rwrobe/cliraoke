@@ -32,8 +32,8 @@ pub struct AppComponent<'a> {
     state: Arc<Mutex<GlobalState>>,
 }
 
-impl AppComponent<'_> {
-    pub fn new(lp: &dyn LyricsService, ap: &dyn AudioService) -> Self {
+impl<'a> AppComponent<'a> {
+    pub fn new(lp: &'a (dyn LyricsService + 'a), ap: &'a (dyn AudioService + 'a)) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
             lyrics_provider: lp,
