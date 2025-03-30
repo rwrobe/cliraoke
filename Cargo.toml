@@ -22,3 +22,4 @@ strum = { version = "0.25.0", features = ["derive"] }
 tokio = { version = "1.32.0", features = ["full"] }
 tui-input = { version = "0.8.0", features = ["serde"] }
 regex = "1.11.1"
+async-trait = "0.1.88"

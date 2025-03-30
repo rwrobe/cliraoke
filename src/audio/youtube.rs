@@ -3,6 +3,7 @@ use anyhow::anyhow;
 use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
+use async_trait::async_trait;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
@@ -16,6 +17,7 @@ impl YouTube {
     }
 }
 
+#[async_trait]
 impl AudioService for YouTube {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>> {
         let client = Client::new(); // Create a new HTTP client
@@ -134,8 +136,6 @@ pub struct Video {
     pub title: String,
     pub artist: String,
 }
-
-pub async fn fetch_videos(api_key: &str, query: &str) -> anyhow::Result<Vec<Video>> {}
 
 // Get the direct audio stream URL using yt-dlp
 pub fn get_youtube_audio_url(video_id: &str) -> Option<String> {

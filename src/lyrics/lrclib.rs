@@ -8,8 +8,9 @@ impl LRCLib {
     }
 }
 
+#[async_trait]
 impl LyricsService for LRCLib {
-    async fn search(&self, query: &str) -> Vec<LyricsResult> {
+    async fn search(&self, query: &str) -> anyhow::Result<Vec<LyricsResult>> {
         let client = Client::new(); // Create a new HTTP client
         // let mut lyrics = Vec::new(); // Initialize a vector to store videos
         let base_url = "https://lrclib.net/api/search";
@@ -22,19 +23,12 @@ impl LyricsService for LRCLib {
             .await
             .expect("should get lrclib response"); // Send the HTTP GET request
 
-        // TODO: We can do this with better error handling
-        // if !response.status().is_success() {
-        //     println!("API request failed with status: {}", response.status());
-        //     println!("Response body: {}", response.text().await?);
-        //     return Err(anyhow::anyhow!("API request failed"));
-        // }
-
         let json: Vec<Value> = response
             .json()
             .await
             .expect("should parse the value as json"); // Parse the response body as JSON array
 
-        // Do this idiomatic idiomat.
+
         let lyrics = json
             .iter()
             .cloned()
@@ -45,18 +39,19 @@ impl LyricsService for LRCLib {
                     None
                 }
             })
-            .map(|l| LyricsResult {
-                id: l.id.to_string(),
-                artist: l.artist_name,
-                title: l.track_name,
-                // Again, we should handle this case better elsewhere, this is placeholder
-                // and is never read by the application using this data.
-                synced_lyrics: l.synced_lyrics.unwrap_or("".to_owned()),
-                lyric_map: None,
-            })
-            .collect();
+            .map(|l| {
+                let synced_lyric = l.synced_lyrics.unwrap_or("".to_owned());
+                let lyric_map = raw_to_lyrics_map(&synced_lyric).unwrap_or_default();
+                LyricsResult {
+                    id: l.id.to_string(),
+                    artist: l.artist_name,
+                    title: l.track_name,
+                    synced_lyrics: synced_lyric,
+                    lyric_map: Some(lyric_map),
+                }
+            });
 
-        lyrics
+        Ok(lyrics)
     }
 
     async fn fetch(&self, id: &str) -> anyhow::Result<String> {
@@ -75,6 +70,8 @@ use serde_json::{Number, Value};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 use std::{thread, u64};
+use async_trait::async_trait;
+use crate::audio::AudioResult;
 
 fn deserialize_u64<'de, D>(deserializer: D) -> Result<String, D::Error>
 where

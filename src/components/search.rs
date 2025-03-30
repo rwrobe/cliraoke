@@ -13,12 +13,11 @@ use std::sync::{Arc, Mutex};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
-#[derive(Default)]
 pub struct Search<'a> {
-    audio_provider: &'a dyn AudioService,
+    audio_service: &'a dyn AudioService,
     audio_results: StatefulList<'a>,
     lyric_results: StatefulList<'a>,
-    lyrics_provider: &'a dyn LyricsService,
+    lyrics_service: &'a dyn LyricsService,
 
     query: Input,
     global_state: Arc<Mutex<GlobalState>>,
@@ -31,10 +30,10 @@ impl Search<'_> {
         ap: &dyn AudioService,
     ) -> Self {
         Self {
-            audio_provider: ap,
+            audio_service: ap,
             audio_results: StatefulList::default(),
             lyric_results: StatefulList::default(),
-            lyrics_provider: lp,
+            lyrics_service: lp,
 
             query: Input::default(),
             global_state: state,
@@ -52,30 +51,44 @@ impl Search<'_> {
         }
 
         // Search audio.
-        let audio_results = self.audio_provider.search(query).await;
-        if audio_results.len() {
-            self.audio_results.update(audio_results)?;
+        let audio_results = self.audio_service.search(query).await;
+        match audio_results {
+            Ok(results) => {
+                self.audio_results = StatefulList::with_items(results.into_iter().map(|r| {
+                    let item = ListItem::new(r.title);
+                    item
+                }).collect(), None);
+            }
+            Err(e) => {
+                println!("Error searching audio: {}", e);
+            }
         }
 
         // Search lyrics.
-        let lyric_results = self.lyrics_provider.search(query).await;
-        if lyric_results.len() {
-            self.lyric_results.update(lyric_results)?;
+        let lyric_results = self.lyrics_service.search(query).await;
+        match lyric_results {
+            Ok(results) => {
+                self.lyric_results = StatefulList::with_items(results.into_iter().map(|r| {
+                    let item = ListItem::new(r.title);
+                    item
+                }).collect(), None);
+            }
+            Err(e) => {
+                println!("Error searching lyrics: {}", e);
+            }
         }
 
-        {
-            // Add it to the global state songs list.
-            let mut global_state = self.global_state.lock().unwrap();
-            global_state.songs.push(Song {
-                lyric_id: "".to_string(),
-                video_id: "".to_string(),
-                title: query.to_string(),
-                artist: "Unknown".to_string(),
-                synced_lyrics: "".to_string(),
-                lyric_map: None,
-                message: (),
-            })
-        }
+        // Add it to the global state songs list.
+        let mut global_state = self.global_state.lock().unwrap();
+        global_state.songs.push(Song {
+            lyric_id: "".to_string(),
+            video_id: "".to_string(),
+            title: query.to_string(),
+            artist: "Unknown".to_string(),
+            synced_lyrics: "".to_string(),
+            lyric_map: None,
+            message: (),
+        });
 
         self.query.reset()
     }

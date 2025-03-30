@@ -36,12 +36,12 @@ impl AppComponent<'_> {
     pub fn new(lp: &dyn LyricsService, ap: &dyn AudioService) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
-            lyrics_provider: &lp,
-            audio_provider: &ap,
+            lyrics_provider: lp,
+            audio_provider: ap,
             help: Help::new(),
             lyrics: Lyrics::new(),
             queue: Queue::new(global_state.clone()),
-            search: Search::new(global_state.clone()),
+            search: Search::new(global_state.clone(), lp, ap),
             timer: Timer::new(),
             state: global_state.clone(),
         }
