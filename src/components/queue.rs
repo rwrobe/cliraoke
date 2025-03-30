@@ -20,6 +20,7 @@ use ratatui::{
     },
     Frame,
 };
+use ratatui::widgets::BorderType;
 use tokio::sync::mpsc::UnboundedSender;
 use crate::events::{EventState, Key};
 
@@ -48,11 +49,6 @@ impl Queue {
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
-        match key {
-            _ => {
-                // TODO: song navigation
-            }
-        }
         Ok(EventState::NotConsumed)
     }
 }
@@ -70,8 +66,8 @@ impl RenderableComponent for Queue {
                 self.songs.len()
             )))
             .title_alignment(Alignment::Center)
-            .borders(Borders::TOP)
-            .border_style(Style::new().fg(Cyan));
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded);
 
         // Iterate through all elements in the `items` and stylize them.
         let items: Vec<ListItem> = self

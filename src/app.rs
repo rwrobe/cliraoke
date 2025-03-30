@@ -1,8 +1,9 @@
+use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::{
     action::Action,
-    constants::Focus,
     components::{help::Help, queue::Queue, search::Search, timer, timer::Timer, title::Title},
+    constants::Focus,
     events::Key,
 };
 use color_eyre::eyre::Result;
@@ -16,8 +17,8 @@ use ratatui::{
     Frame,
 };
 use serde::{Deserialize, Serialize};
+use std::cmp::PartialEq;
 use tokio::sync::mpsc;
-use crate::components::RenderableComponent;
 
 pub struct AppComponent<'a> {
     help: Help,
@@ -26,6 +27,12 @@ pub struct AppComponent<'a> {
     search: Search<'a>,
     timer: Timer,
     focus: Focus,
+}
+
+impl PartialEq for Focus {
+    fn eq(&self, other: &Self) -> bool {
+        todo!()
+    }
 }
 
 impl AppComponent<'_> {
@@ -38,6 +45,73 @@ impl AppComponent<'_> {
             timer: Timer::new(),
             focus: Focus::Home,
         }
+    }
+
+    fn toggle_focus(&mut self, focus: Focus) {
+        if self.focus == focus {
+            self.focus = Focus::Home;
+        }
+
+        self.focus = focus;
+    }
+
+    pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
+        match self.focus.clone() {
+            Focus::Queue => {
+                if self.queue.event(key).await.unwrap().is_consumed() {
+                    return Ok(EventState::Consumed);
+                }
+
+                match key {
+                    Key::Char('u') => {
+                        self.focus = Focus::Home;
+                    }
+                    _ => {}
+                }
+            }
+            Focus::Search => {
+                if self.search.event(key).await.unwrap().is_consumed() {
+                    return Ok(EventState::Consumed);
+                }
+
+                match key {
+                    Key::Char('/') => {
+                        self.focus = Focus::Home;
+                    }
+                    _ => {}
+                }
+            }
+            Focus::Help => {
+                match key {
+                    Key::Esc | Key::Char('h') => {
+                        self.focus = Focus::Home;
+                    }
+                    _ => {}
+                }
+            }
+            Focus::Lyrics => {
+                // if self.lyrics.event(key).await?.is_consumed() {
+                //     return Ok(EventState::Consumed);
+                // }
+            }
+            _ => match key {
+                Key::Esc => {
+                    self.focus = Focus::Home;
+                }
+                Key::Char('h') => {
+                    self.focus = Focus::Help;
+                }
+                Key::Char('u') => {
+                    self.focus = Focus::Queue;
+                }
+                Key::Char('/') => {
+                    self.focus = Focus::Search;
+                }
+                _ => {}
+            },
+        }
+
+        Ok(EventState::NotConsumed)
     }
 
     pub fn render<B: Backend>(
@@ -80,10 +154,12 @@ impl AppComponent<'_> {
                     .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
                     .split(chunks[1]);
 
-                self.queue.render(f,inner_rects[1], matches!(self.focus(), Focus::Queue))?;
+                self.queue
+                    .render(f, inner_rects[1], matches!(self.focus(), Focus::Queue))?;
             }
-            Focus::SearchBar => {
-                self.search.render(f,body, matches!(self.focus(), Focus::Queue))?;
+            Focus::Search => {
+                self.search
+                    .render(f, body, matches!(self.focus(), Focus::Queue))?;
             }
             _ => {
                 let lyrics_block = Block::default()
@@ -97,60 +173,18 @@ impl AppComponent<'_> {
         // Footer.
         match self.focus {
             Focus::Help => {
-                self.help.render(f, footer,false)?;
+                self.help.render(f, footer, false)?;
             }
             _ => {
                 self.timer.render(f, footer, false)?;
             }
         }
 
-
         Ok(())
     }
 
     fn focus(&self) -> Focus {
         self.focus.clone()
-    }
-
-    pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
-        match self.focus {
-            Focus::Home => {
-                match key{
-                    Key::Char('/') => {
-                        self.focus = Focus::SearchBar
-                    }
-                    Key::Char('u') => {
-                        self.focus = Focus::Queue
-                    }
-                    Key::Char('h') => {
-                        self.focus = Focus::Help
-                    }
-                    _ => {}
-                }
-            }
-            Focus::Queue => {
-                if self.queue.event(key).await.unwrap().is_consumed() {
-                    return Ok(EventState::Consumed);
-                }
-            }
-            Focus::SearchBar => {
-                if self.search.event(key).await.unwrap().is_consumed() {
-                    return Ok(EventState::Consumed);
-                }
-            }
-            Focus::Lyrics => {
-                // if self.lyrics.event(key).await?.is_consumed() {
-                //     return Ok(EventState::Consumed);
-                // }
-            }
-            _ => {}
-        }
-        //
-        // if self.move_focus(key).await.unwrap().is_consumed() {
-        //     return Ok(EventState::Consumed);
-        // };
-
-        Ok(EventState::NotConsumed)
     }
 
     async fn components_event(&mut self, key: Key) -> Result<EventState> {
@@ -165,7 +199,7 @@ impl AppComponent<'_> {
                     return Ok(EventState::Consumed);
                 }
             }
-            Focus::SearchBar => {
+            Focus::Search => {
                 if self.search.event(key).await?.is_consumed() {
                     return Ok(EventState::Consumed);
                 }
@@ -188,9 +222,9 @@ impl AppComponent<'_> {
                     self.focus = Focus::Queue
                 }
             }
-            Focus::SearchBar => {
+            Focus::Search => {
                 if key == Key::Char('/') || key == Key::Enter {
-                    self.focus = Focus::SearchBar
+                    self.focus = Focus::Search
                 }
             }
             _ => {

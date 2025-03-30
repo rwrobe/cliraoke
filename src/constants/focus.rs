@@ -1,8 +1,9 @@
 #[derive(Debug, Clone)]
 pub enum Focus {
+    Help,
     Home,
     Lyrics,
     Queue,
-    SearchBar,
-    Help,
+    Search,
+    Timer,
 }
