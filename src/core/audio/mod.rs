@@ -1,8 +1,8 @@
 pub(crate) mod audio {
+    use anyhow::anyhow;
     use reqwest::Client;
     use serde_json::Value;
     use std::process::Command;
-    use anyhow::anyhow;
 
     const SEARCH_SUFFIX: &str = "karaoke version";
 

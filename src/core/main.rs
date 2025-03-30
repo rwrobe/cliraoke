@@ -4,8 +4,6 @@ mod lyrics;
 
 use crate::cli::cli::CLIOption;
 use dotenv::dotenv;
-use std::env;
-use std::process::exit;
 
 const ENV_API_KEY: &str = "YOUTUBE_API_KEY";
 

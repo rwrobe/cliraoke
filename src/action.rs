@@ -1,9 +1,7 @@
-use crossterm::event::KeyCode;
 use serde::{
-    de::{self, Deserializer, Visitor},
+    de::{Deserializer, Visitor},
     Deserialize, Serialize,
 };
-use std::{fmt, string::ToString};
 use strum::Display;
 
 //// ANCHOR: action_enum

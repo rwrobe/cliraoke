@@ -1,19 +1,15 @@
 use ratatui::style::Stylize;
-use ratatui::widgets::block::Title;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use super::RenderableComponent;
 use color_eyre::eyre::Result;
+use ratatui::widgets::block;
 use ratatui::{
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    text::{Span, Spans, Text},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    widgets::Block,
     Frame,
 };
-use ratatui::widgets::block;
-use super::{ RenderableComponent};
-use crate::{action::Action};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {

@@ -1,28 +1,23 @@
 use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::{
-    action::Action,
-    components::{help::Help, queue::Queue, search::Search, timer, timer::Timer, title::Title},
+    components::{
+        help::Help, lyrics::Lyrics, queue::Queue, search::Search, timer::Timer, title::Title,
+    },
     constants::Focus,
     events::Key,
 };
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    text::{Span, Spans, Text},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    layout::{Constraint, Direction, Layout, Rect},
     Frame,
 };
-use serde::{Deserialize, Serialize};
 use std::cmp::PartialEq;
-use tokio::sync::mpsc;
 
 pub struct AppComponent<'a> {
     help: Help,
-    //lyrics: Lyrics,
+    lyrics: Lyrics,
     queue: Queue,
     search: Search<'a>,
     timer: Timer,
@@ -39,7 +34,7 @@ impl AppComponent<'_> {
     pub fn new() -> Self {
         Self {
             help: Help::new(),
-            //lyrics: Lyrics::new(),
+            lyrics: Lyrics::new(),
             queue: Queue::new(),
             search: Search::new(),
             timer: Timer::new(),
@@ -81,14 +76,12 @@ impl AppComponent<'_> {
                     _ => {}
                 }
             }
-            Focus::Help => {
-                match key {
-                    Key::Esc | Key::Char('h') => {
-                        self.focus = Focus::Home;
-                    }
-                    _ => {}
+            Focus::Help => match key {
+                Key::Esc | Key::Char('h') => {
+                    self.focus = Focus::Home;
                 }
-            }
+                _ => {}
+            },
             Focus::Lyrics => {
                 // if self.lyrics.event(key).await?.is_consumed() {
                 //     return Ok(EventState::Consumed);
@@ -146,11 +139,6 @@ impl AppComponent<'_> {
         );
         app_title.render(f, header, false)?;
 
-        let lyrics_block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Yellow));
-
         // The layout of the body is determined by focus.
         match self.focus {
             Focus::Queue => {
@@ -161,8 +149,7 @@ impl AppComponent<'_> {
 
                 let (left, right) = (inner_rects[0], inner_rects[1]);
 
-                f.render_widget(lyrics_block, left);
-
+                self.lyrics.render(f, left, false)?;
                 self.queue
                     .render(f, right, matches!(self.focus(), Focus::Queue))?;
             }
@@ -171,7 +158,7 @@ impl AppComponent<'_> {
                     .render(f, body, matches!(self.focus(), Focus::Queue))?;
             }
             _ => {
-                f.render_widget(lyrics_block, body);
+                self.lyrics.render(f, body, false)?;
             }
         }
 

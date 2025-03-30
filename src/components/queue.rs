@@ -1,28 +1,20 @@
-use crate::action::Action;
-use crate::components::{RenderableComponent};
+use crate::components::RenderableComponent;
+use crate::events::{EventState, Key};
 use crate::models::song::{Song, SongList};
-use crate::events::{Event};
-use clap::builder::styling::AnsiColor::White;
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
-use log::error;
 use ratatui::backend::Backend;
 use ratatui::layout::Alignment;
 use ratatui::style::Color::{Black, Cyan};
+use ratatui::widgets::BorderType;
 use ratatui::{
-    buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
-    style::{Color, Modifier, Style, Stylize},
+    layout::Rect,
+    style::{Style, Stylize},
     text::Line,
     widgets::{
-        Block, Borders, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph,
-        StatefulWidget, Widget, Wrap,
+        Block, Borders, HighlightSpacing, List, ListItem,
     },
     Frame,
 };
-use ratatui::widgets::BorderType;
-use tokio::sync::mpsc::UnboundedSender;
-use crate::events::{EventState, Key};
 
 #[derive(Default)]
 pub struct Queue {

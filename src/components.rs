@@ -1,12 +1,12 @@
 use anyhow::Result;
 use ratatui::{backend::Backend, layout::Rect, Frame};
 
-mod lyrics;
 pub(crate) mod help;
 pub(crate) mod queue;
 pub(crate) mod search;
 pub(crate) mod timer;
 pub(crate) mod title;
+pub(crate) mod lyrics;
 mod stateful_list;
 
 pub trait RenderableComponent {

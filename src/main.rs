@@ -19,8 +19,8 @@ use crossterm::{
   terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use events::{Event, Events, Key};
-use std::io;
 use ratatui::{backend::CrosstermBackend, Terminal};
+use std::io;
 
 #[tokio::main]
 async fn main() -> Result<()> {

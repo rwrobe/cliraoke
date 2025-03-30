@@ -1,15 +1,8 @@
-use super::{queue, timer, Frame, RenderableComponent};
+use super::{Frame, RenderableComponent};
 use crate::components::stateful_list::StatefulList;
-use crate::{
-    action::Action,
-    events::{EventState, Key},
-};
+use crate::events::{EventState, Key};
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use futures::channel::mpsc::UnboundedSender;
-use futures::SinkExt;
-use log::error;
-use ratatui::widgets::{List, ListState};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
