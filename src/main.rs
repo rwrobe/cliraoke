@@ -11,6 +11,7 @@ mod util;
 mod events;
 mod app;
 mod constants;
+mod state;
 
 use anyhow::Result;
 use app::AppComponent;

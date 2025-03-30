@@ -1,7 +1,8 @@
 use super::RenderableComponent;
-use ratatui::{prelude::*, widgets::*};
-use ratatui::{prelude::*, widgets::*};
 use crate::app::GlobalState;
+use ratatui::{prelude::*, widgets::*};
+use ratatui::{prelude::*, widgets::*};
+use std::sync::{Arc, Mutex};
 
 pub struct Help;
 
@@ -16,7 +17,7 @@ impl RenderableComponent for Help {
     &self,
     f: &mut ratatui::Frame<B>,
     rect: Rect,
-    state: GlobalState,
+    state: Arc<Mutex<GlobalState>>,
   ) -> anyhow::Result<()> {
     let help_text = Line::from(vec![
       "Press ".into(),

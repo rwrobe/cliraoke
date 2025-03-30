@@ -14,13 +14,11 @@ use ratatui::{
     Frame,
 };
 use std::cmp::PartialEq;
+use std::sync::{Arc, Mutex};
+use strum::Display;
 use crate::models::song::SongList;
-
-pub struct GlobalState {
-    pub(crate) current_song: Option<String>,
-    pub(crate) current_song_index: usize,
-    pub(crate) songs: SongList,
-}
+pub(crate) use crate::state::GlobalState;
+use crate::state::InputMode;
 
 pub struct AppComponent<'a> {
     help: Help,
@@ -29,29 +27,20 @@ pub struct AppComponent<'a> {
     search: Search<'a>,
     timer: Timer,
     focus: Focus,
-    state: GlobalState,
-}
-
-impl PartialEq for Focus {
-    fn eq(&self, other: &Self) -> bool {
-        todo!()
-    }
+    state: Arc<Mutex<GlobalState>>,
 }
 
 impl AppComponent<'_> {
     pub fn new() -> Self {
+        let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
             help: Help::new(),
             lyrics: Lyrics::new(),
-            queue: Queue::new(),
-            search: Search::new(),
+            queue: Queue::new(global_state.clone()),
+            search: Search::new(global_state.clone()),
             timer: Timer::new(),
             focus: Focus::Home,
-            state: GlobalState {
-                current_song: None,
-                current_song_index: 0,
-                songs: Vec::new(),
-            },
+            state: global_state.clone(),
         }
     }
 
@@ -83,7 +72,7 @@ impl AppComponent<'_> {
                 }
 
                 match key {
-                    Key::Char('/') => {
+                    Key::Char('/') | Key::Esc => {
                         self.focus = Focus::Home;
                     }
                     _ => {}
@@ -112,6 +101,7 @@ impl AppComponent<'_> {
                 }
                 Key::Char('/') => {
                     self.focus = Focus::Search;
+                    self.state.lock().unwrap().mode = InputMode::Input;
                 }
                 _ => {}
             },
@@ -150,7 +140,7 @@ impl AppComponent<'_> {
             )
             .as_str(),
         );
-        app_title.render(f, header, false)?;
+        app_title.render(f, header, self.state.clone())?;
 
         // The layout of the body is determined by focus.
         match self.focus {
@@ -162,24 +152,24 @@ impl AppComponent<'_> {
 
                 let (left, right) = (inner_rects[0], inner_rects[1]);
 
-                self.lyrics.render(f, left, self.state)?;
-                self.queue.render(f, right, self.state)?;
+                self.lyrics.render(f, left, self.state.clone())?;
+                self.queue.render(f, right, self.state.clone())?;
             }
             Focus::Search => {
-                self.search.render(f, body, self.state)?;
+                self.search.render(f, body, self.state.clone())?;
             }
             _ => {
-                self.lyrics.render(f, body, self.state)?;
+                self.lyrics.render(f, body, self.state.clone())?;
             }
         }
 
         // Footer.
         match self.focus {
             Focus::Help => {
-                self.help.render(f, footer, self.state)?;
+                self.help.render(f, footer, self.state.clone())?;
             }
             _ => {
-                self.timer.render(f, footer, self.state)?;
+                self.timer.render(f, footer, self.state.clone())?;
             }
         }
 

@@ -2,7 +2,7 @@ use crate::util::deserialize_u64;
 use std::collections::BTreeMap;
 
 // Song is the master struct that holds information composed by both lyric and audio sources.
-#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
     #[serde(deserialize_with = "deserialize_u64", rename = "id")]

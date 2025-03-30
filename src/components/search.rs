@@ -1,36 +1,31 @@
-use strum::Display;
 use super::{Frame, RenderableComponent};
+use crate::app::GlobalState;
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
+use crate::models::song::Song;
+use crate::state::InputMode;
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{prelude::*, widgets::*};
+use std::sync::{Arc, Mutex};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
-use crate::app::GlobalState;
-
-#[derive(Default, PartialEq, Display)]
-enum InputMode {
-    Nav,
-    #[default]
-    Input,
-}
 
 #[derive(Default)]
 pub struct Search<'a> {
     query: Input,
-    mode : InputMode,
     audio_results: StatefulList<'a>,
     lyric_results: StatefulList<'a>,
+    global_state: Arc<Mutex<GlobalState>>,
 }
 
 impl Search<'_> {
-    pub fn new() -> Self {
+    pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
         Self {
             query: Input::default(),
-            mode: InputMode::Input,
             audio_results: StatefulList::default(),
             lyric_results: StatefulList::default(),
+            global_state: state,
         }
     }
 
@@ -44,23 +39,37 @@ impl Search<'_> {
             return;
         }
 
+        {
+            // Add it to the global state songs list.
+            let mut global_state = self.global_state.lock().unwrap();
+            global_state.songs.push(Song {
+                lyric_id: "".to_string(),
+                video_id: "".to_string(),
+                title: query.to_string(),
+                artist: "Unknown".to_string(),
+                synced_lyrics: "".to_string(),
+                lyric_map: None,
+                message: (),
+            })
+        }
+
         self.query.reset()
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
-       if self.mode == InputMode::Nav {
+        if self.global_state.lock().unwrap().mode == InputMode::Nav {
             return Ok(EventState::NotConsumed);
         }
 
         match key {
             k if k == Key::Enter => {
                 self.search();
-                self.mode = InputMode::Nav;
+                self.global_state.lock().unwrap().mode = InputMode::Nav;
                 return Ok(EventState::Consumed);
             }
             k if k == Key::Char('/') => {
                 self.query.reset();
-                self.mode = InputMode::Input;
+                self.global_state.lock().unwrap().mode = InputMode::Input;
                 return Ok(EventState::Consumed);
             }
             k if k == Key::Esc => {
@@ -82,7 +91,7 @@ impl RenderableComponent for Search<'_> {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        state: GlobalState,
+        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.query.visual_scroll(width as usize);
@@ -104,7 +113,10 @@ impl RenderableComponent for Search<'_> {
                                 .add_modifier(Modifier::BOLD)
                                 .fg(Color::LightRed),
                         ),
-                        Span::styled(format!(" to submit) {}", self.mode), Style::default().fg(Color::DarkGray)),
+                        Span::styled(
+                            format!(" to submit) {}", self.global_state.lock().unwrap().mode),
+                            Style::default().fg(Color::DarkGray),
+                        ),
                     ])),
             );
 

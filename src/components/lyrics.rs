@@ -1,6 +1,9 @@
+use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::models::song::Song;
 use ratatui::backend::Backend;
+use ratatui::layout::Alignment;
+use ratatui::prelude::Line;
 use ratatui::widgets::BorderType;
 use ratatui::{
     layout::Rect,
@@ -10,9 +13,7 @@ use ratatui::{
     },
     Frame,
 };
-use ratatui::layout::Alignment;
-use ratatui::prelude::Line;
-use crate::app::GlobalState;
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 pub struct Lyrics {
@@ -36,7 +37,7 @@ impl RenderableComponent for Lyrics {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        state: GlobalState,
+        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let block = Block::default()
             .title(Line::from(" Song by Artist "))

@@ -1,3 +1,4 @@
+use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::events::{EventState, Key};
 use crate::models::song::{Song, SongList};
@@ -15,30 +16,18 @@ use ratatui::{
     },
     Frame,
 };
-use crate::app::GlobalState;
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 pub struct Queue {
-    pub songs: SongList,
-    pub current_song: Option<Song>,
-    pub current_song_index: usize,
+    pub global_state: Arc<Mutex<GlobalState>>,
 }
 
 impl Queue {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    fn default() -> Self {
+    pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
         Self {
-            songs: Vec::new(),
-            current_song: None,
-            current_song_index: 0,
+            global_state: state,
         }
-    }
-
-    fn add(&mut self, song: Song) {
-        self.songs.push(song);
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
@@ -51,20 +40,20 @@ impl RenderableComponent for Queue {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        state: GlobalState,
+        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
+        let songs = state.lock().unwrap().songs.clone();
         let block = Block::new()
             .title(Line::from(format!(
                 " {} songs in the queue ",
-                self.songs.len()
+                songs.len(),
             )))
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded);
 
         // Iterate through all elements in the `items` and stylize them.
-        let items: Vec<ListItem> = self
-            .songs
+        let items: Vec<ListItem> = songs
             .iter()
             .enumerate()
             .map(|(i, song)| ListItem::new(song.title.clone()).bg(Black))

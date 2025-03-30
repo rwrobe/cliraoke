@@ -1,6 +1,7 @@
-use ratatui::{prelude::*, widgets::*};
-use crate::app::GlobalState;
 use super::RenderableComponent;
+use crate::app::GlobalState;
+use ratatui::{prelude::*, widgets::*};
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 pub struct Title {
@@ -18,9 +19,9 @@ impl Title {
 impl RenderableComponent for Title {
     fn render<B: Backend>(
         &self,
-        f: &mut ratatui::Frame<B>,
+        f: &mut Frame<B>,
         rect: Rect,
-        state: GlobalState,
+        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         {
             f.render_widget(

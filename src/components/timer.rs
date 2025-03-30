@@ -1,7 +1,9 @@
 use ratatui::style::Stylize;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::RenderableComponent;
+use crate::app::GlobalState;
 use color_eyre::eyre::Result;
 use ratatui::widgets::block;
 use ratatui::{
@@ -10,7 +12,6 @@ use ratatui::{
     widgets::Block,
     Frame,
 };
-use crate::app::GlobalState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
@@ -19,7 +20,7 @@ pub enum Ticker {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Timer {
-    song_remaining_time: Duration,
+    song_remaining_time: Duration, // TODO global state
 }
 
 impl Timer {
@@ -40,7 +41,7 @@ impl RenderableComponent for Timer {
         &self,
         f: &mut Frame<B>,
         rect: Rect,
-        state: GlobalState,
+        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let rects = Layout::default()
             .direction(Direction::Vertical)
