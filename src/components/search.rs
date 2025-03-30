@@ -78,18 +78,6 @@ impl<'b> Search<'b> {
             }
         }
 
-        // Add it to the global state songs list.
-        let mut global_state = self.global_state.lock().unwrap();
-        global_state.songs.push(Song {
-            lyric_id: "".to_string(),
-            video_id: "".to_string(),
-            title: query.to_string(),
-            artist: "Unknown".to_string(),
-            synced_lyrics: "".to_string(),
-            lyric_map: None,
-            message: (),
-        });
-
         self.query.reset()
     }
 
