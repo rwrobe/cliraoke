@@ -108,7 +108,7 @@ impl<'b> Search<'b> {
                         .into_iter()
                         .take(5)
                         .map(|r| {
-                            let item = ListItem::new(r.title);
+                            let item = ListItem::new(format!("{} by {}", r.title, r.artist));
                             item
                         })
                         .collect(),

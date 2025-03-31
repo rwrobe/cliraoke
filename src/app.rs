@@ -42,9 +42,13 @@ impl<'a> AppComponent<'a> {
             lyrics: Lyrics::new(),
             queue: Queue::new(global_state.clone()),
             search: Search::new(global_state.clone(), lp, ap),
-            timer: Timer::new(),
+            timer: Timer::new(global_state.clone()),
             state: global_state.clone(),
         }
+    }
+
+    pub(crate) fn tick(&self) {
+        self.state.lock().unwrap().session_time_elapsed += std::time::Duration::from_secs(1);
     }
 
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {

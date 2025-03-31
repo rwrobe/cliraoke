@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
         Err(_) => unimplemented!(),
       },
 
-      Event::Tick => {}
+      Event::Tick => app.tick()
     }
   }
 

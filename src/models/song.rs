@@ -1,5 +1,6 @@
 use crate::util::deserialize_u64;
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 // Song is the master struct that holds information composed by both lyric and audio sources.
 #[derive(Debug, Clone, serde::Deserialize, Default, PartialEq)]
@@ -12,9 +13,10 @@ pub struct Song {
     pub(crate) title: String,
     #[serde(rename = "artist_name")]
     pub(crate) artist: String,
+    pub(crate) duration: Duration,
     pub(crate) synced_lyrics: String,
     pub(crate) lyric_map: Option<LyricsMap>,
-    pub message: ()
+    pub message: (),
 }
 
 pub type SongList = Vec<Song>;

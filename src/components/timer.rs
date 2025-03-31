@@ -12,27 +12,23 @@ use ratatui::{
     widgets::Block,
     Frame,
 };
+use crate::models::song::Song;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
     SongRemainingTicker,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct Timer {
-    song_remaining_time: Duration, // TODO global state
+    global_state: Arc<Mutex<GlobalState>>,
 }
 
 impl Timer {
-    pub fn new() -> Self {
+    pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
         Self {
-            song_remaining_time: Duration::from_secs(0),
+            global_state: state
         }
-    }
-
-    fn app_tick(&mut self) -> Result<()> {
-        // TODO: song duration countdown
-        Ok(())
     }
 }
 
@@ -43,21 +39,27 @@ impl RenderableComponent for Timer {
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
+        let global_state = state.lock().unwrap();
+
         let rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Length(1), Constraint::Min(0)])
             .split(rect);
 
-        let rect = rects[0];
+        let song_remaining_time = global_state.songs.get(global_state.current_song_index)
+            .map(|song| song.duration - global_state.song_time_elapsed)
+            .unwrap_or(Duration::new(0, 0));
 
         let s = format!(
-            "{:02}:{:02} until {}",
-            self.song_remaining_time.as_secs() / 60,
-            self.song_remaining_time.as_secs() % 60,
-            "next song placeholder"
+            "Time singing {:02}:{:02}. {:02}:{:02} until {}",
+            global_state.session_time_elapsed.as_secs() / 60,
+            global_state.session_time_elapsed.as_secs() % 60,
+            song_remaining_time.as_secs() / 60,
+            song_remaining_time.as_secs() % 60,
+            global_state.current_song.unwrap_or(Song::default()).title
         );
         let block = Block::default().title(Title::from(s.dim()).alignment(Alignment::Right));
-        f.render_widget(block, rect);
+        f.render_widget(block, rects[0]);
         Ok(())
     }
 }
