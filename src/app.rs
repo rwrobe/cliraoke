@@ -29,6 +29,7 @@ pub struct AppComponent<'a> {
     queue: Queue,
     search: Search<'a>,
     timer: Timer,
+    tick_accumulator: u64,
     state: Arc<Mutex<GlobalState>>,
 }
 
@@ -43,12 +44,20 @@ impl<'a> AppComponent<'a> {
             queue: Queue::new(global_state.clone()),
             search: Search::new(global_state.clone(), lp, ap),
             timer: Timer::new(global_state.clone()),
+            tick_accumulator: 0,
             state: global_state.clone(),
         }
     }
 
-    pub(crate) fn tick(&self) {
-        self.state.lock().unwrap().session_time_elapsed += std::time::Duration::from_secs(1);
+    // tick is called every second
+    pub(crate) fn tick(&mut self, tick_rate_ms: u64) {
+        self.tick_accumulator += tick_rate_ms;
+
+        if self.tick_accumulator >= 1000 {
+            let seconds = self.tick_accumulator / 1000;
+            self.state.lock().unwrap().session_time_elapsed += std::time::Duration::from_secs(seconds);
+            self.tick_accumulator %= 1000;
+        }
     }
 
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {

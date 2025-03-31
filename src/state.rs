@@ -45,6 +45,7 @@ impl GlobalState {
             mode: InputMode::Nav,
             focus: Focus::Home,
             session_time_elapsed: Duration::new(0, 0),
+            song_time_elapsed: Duration::new(0, 0),
         }
     }
 }

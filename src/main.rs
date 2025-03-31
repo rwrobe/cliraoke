@@ -26,6 +26,9 @@ use dotenv::dotenv;
 use crate::audio::youtube::YouTube;
 use crate::lyrics::lrclib::LRCLib;
 
+// APP_TICK_RATE is the rate in ms at which the app will render. For timers, ensure it cleanly
+// divides 1000.
+const APP_TICK_RATE: u64 = 200;
 const ENV_API_KEY: &str = "YOUTUBE_API_KEY";
 
 #[tokio::main]
@@ -36,7 +39,7 @@ async fn main() -> Result<()> {
   let stdout = io::stdout();
   let backend = CrosstermBackend::new(stdout);
   let mut terminal = Terminal::new(backend)?;
-  let events = Events::new(200);
+  let events = Events::new(APP_TICK_RATE);
 
 
   let api_key = dotenv::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
@@ -68,7 +71,7 @@ async fn main() -> Result<()> {
         Err(_) => unimplemented!(),
       },
 
-      Event::Tick => app.tick()
+      Event::Tick => app.tick(APP_TICK_RATE)
     }
   }
 

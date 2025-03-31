@@ -14,6 +14,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
@@ -130,6 +131,7 @@ impl<'b> Search<'b> {
             artist: "".to_string(),
             synced_lyrics: "".to_string(),
             lyric_map: None,
+            duration: Duration::new(0, 0),
             message: (),
         };
 

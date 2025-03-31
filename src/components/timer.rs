@@ -12,6 +12,7 @@ use ratatui::{
     widgets::Block,
     Frame,
 };
+use serde_json::Value::String;
 use crate::models::song::Song;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,24 +43,38 @@ impl RenderableComponent for Timer {
         let global_state = state.lock().unwrap();
 
         let rects = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(1), Constraint::Min(0)])
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(rect);
+
+        let (left, right) = (rects[0], rects[1]);
 
         let song_remaining_time = global_state.songs.get(global_state.current_song_index)
             .map(|song| song.duration - global_state.song_time_elapsed)
             .unwrap_or(Duration::new(0, 0));
 
         let s = format!(
-            "Time singing {:02}:{:02}. {:02}:{:02} until {}",
+            "Singing for {:02}:{:02}",
             global_state.session_time_elapsed.as_secs() / 60,
             global_state.session_time_elapsed.as_secs() % 60,
-            song_remaining_time.as_secs() / 60,
-            song_remaining_time.as_secs() % 60,
-            global_state.current_song.unwrap_or(Song::default()).title
         );
-        let block = Block::default().title(Title::from(s.dim()).alignment(Alignment::Right));
-        f.render_widget(block, rects[0]);
+        let time_singing = Block::default().title(Title::from(s.dim()).alignment(Alignment::Left));
+        f.render_widget(time_singing, left);
+
+        let next_song = global_state.songs.get(global_state.current_song_index + 1);
+
+        if next_song.is_some() {
+            let next_song_remaining = format!(
+                ". {:02}:{:02} until {}",
+                song_remaining_time.as_secs() / 60,
+                song_remaining_time.as_secs() % 60,
+                global_state.songs[global_state.current_song_index].title
+            );
+
+            let time_to_next = Block::default().title(Title::from(next_song_remaining.dim()).alignment(Alignment::Right));
+
+            f.render_widget(time_to_next, right)
+        }
         Ok(())
     }
 }
