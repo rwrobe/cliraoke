@@ -35,7 +35,7 @@ impl Lyrics {
 impl RenderableComponent for Lyrics {
     fn render<B: Backend>(
         &self,
-        f: &mut Frame<B>,
+        f: &mut Frame,
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {

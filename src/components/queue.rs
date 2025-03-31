@@ -38,7 +38,7 @@ impl Queue {
 impl RenderableComponent for Queue {
     fn render<B: Backend>(
         &self,
-        f: &mut Frame<B>,
+        f: &mut Frame,
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {

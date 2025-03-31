@@ -1,26 +1,51 @@
-use super::{Frame, RenderableComponent};
+use super::{Frame, RenderableComponent, ResettableComponent};
 use crate::app::GlobalState;
-use crate::audio::AudioService;
+use crate::audio::{AudioResult, AudioService};
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
-use crate::lyrics::LyricsService;
+use crate::lyrics::{LyricsResult, LyricsService};
 use crate::models::song::Song;
 use crate::state::{Focus, InputMode};
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::{prelude::*, widgets::*};
+use color_eyre::owo_colors::OwoColorize;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::{
+    prelude::*,
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+};
 use std::sync::{Arc, Mutex};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
-pub struct Search<'a> {
-    audio_service: &'a dyn AudioService,
-    audio_results: StatefulList<'a>,
-    lyric_results: StatefulList<'a>,
-    lyrics_service: &'a dyn LyricsService,
+#[derive(Debug, Default, PartialEq)]
+enum SearchFocus {
+    #[default]
+    Input,
+    Audio,
+    Lyrics,
+}
 
-    query: Input,
+impl ResettableComponent for StatefulList<'_> {
+    fn reset(&mut self) {
+        self.items.clear();
+        self.state.select(None);
+    }
+}
+
+pub struct Search<'a> {
+    audio_presentation_list: StatefulList<'a>,
+    audio_results: Vec<AudioResult>,
+    audio_service: &'a dyn AudioService,
+    audio_state: ListState,
+
+    lyrics_presentation_list: StatefulList<'a>,
+    lyric_results: Vec<LyricsResult>,
+    lyrics_service: &'a dyn LyricsService,
+    lyrics_state: ListState,
+
+    focus: SearchFocus,
     global_state: Arc<Mutex<GlobalState>>,
+    query: Input,
 }
 
 impl<'b> Search<'b> {
@@ -30,18 +55,20 @@ impl<'b> Search<'b> {
         ap: &'b (dyn AudioService + 'b),
     ) -> Self {
         Self {
+            audio_presentation_list: StatefulList::default(),
+            audio_results: vec![],
             audio_service: ap,
-            audio_results: StatefulList::default(),
-            lyric_results: StatefulList::default(),
+            audio_state: ListState::default(),
+
+            lyrics_presentation_list: StatefulList::default(),
+            lyric_results: vec![],
             lyrics_service: lp,
+            lyrics_state: ListState::default(),
 
-            query: Input::default(),
+            focus: SearchFocus::Input,
             global_state: state,
+            query: Input::default(),
         }
-    }
-
-    fn add_to_query(&mut self, key: KeyEvent) {
-        self.query.handle_event(&crossterm::event::Event::Key(key));
     }
 
     async fn search(&mut self) {
@@ -54,10 +81,17 @@ impl<'b> Search<'b> {
         let audio_results = self.audio_service.search(query).await;
         match audio_results {
             Ok(results) => {
-                self.audio_results = StatefulList::with_items(results.into_iter().map(|r| {
-                    let item = ListItem::new(r.title);
-                    item
-                }).collect(), None);
+                self.audio_results = results.clone();
+                self.audio_presentation_list = StatefulList::with_items(
+                    results
+                        .into_iter()
+                        .map(|r| {
+                            let item = ListItem::new(r.title);
+                            item
+                        })
+                        .collect(),
+                    None,
+                );
             }
             Err(e) => {
                 println!("Error searching audio: {}", e);
@@ -68,49 +102,184 @@ impl<'b> Search<'b> {
         let lyric_results = self.lyrics_service.search(query).await;
         match lyric_results {
             Ok(results) => {
-                self.lyric_results = StatefulList::with_items(results.into_iter().map(|r| {
-                    let item = ListItem::new(r.title);
-                    item
-                }).collect(), None);
+                self.lyric_results = results.clone();
+                self.lyrics_presentation_list = StatefulList::with_items(
+                    results
+                        .into_iter()
+                        .take(5)
+                        .map(|r| {
+                            let item = ListItem::new(r.title);
+                            item
+                        })
+                        .collect(),
+                    None,
+                );
             }
             Err(e) => {
                 println!("Error searching lyrics: {}", e);
             }
         }
-
-        self.query.reset()
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
-        if self.global_state.lock().unwrap().mode == InputMode::Nav {
-            return Ok(EventState::NotConsumed);
-        }
+        // TODO: This should live elsewhere, so we don't create this for every keystroke.
+        let mut song = Song {
+            lyric_id: "".to_string(),
+            video_id: "".to_string(),
+            title: "".to_string(),
+            artist: "".to_string(),
+            synced_lyrics: "".to_string(),
+            lyric_map: None,
+            message: (),
+        };
 
-        match key {
-            k if k == Key::Enter => {
-                self.search().await;
-                {
-                    let mut global_state = self.global_state.lock().unwrap();
-                    global_state.mode = InputMode::Nav;
-                    global_state.focus = Focus::Queue;
+        match (&self.focus, key) {
+            // Component-level bindings.
+            (SearchFocus::Input | SearchFocus::Audio | SearchFocus::Lyrics, Key::Tab) => {
+                match self.focus {
+                    SearchFocus::Input => {
+                        self.focus = SearchFocus::Audio;
+                    }
+                    SearchFocus::Audio => {
+                        self.focus = SearchFocus::Lyrics;
+                    }
+                    SearchFocus::Lyrics => {
+                        self.focus = SearchFocus::Input;
+                    }
                 }
+            }
+            (SearchFocus::Audio | SearchFocus::Lyrics, Key::Char('/')) => {
+                self.global_state.lock().unwrap().mode = InputMode::Input;
+                self.focus = SearchFocus::Input;
+
                 return Ok(EventState::Consumed);
             }
-            k if k == Key::Char('/') => {
+            (SearchFocus::Audio | SearchFocus::Lyrics, Key::Esc) => {
+                self.query.reset();
+                self.audio_presentation_list.reset();
+                self.lyrics_presentation_list.reset();
+                self.focus = SearchFocus::Input;
+                self.global_state.lock().unwrap().mode = InputMode::Input;
+
+                return Ok(EventState::Consumed);
+            }
+            // Input bindings.
+            (SearchFocus::Input, Key::Char('/')) => {
                 self.query.reset();
                 self.global_state.lock().unwrap().mode = InputMode::Input;
+
                 return Ok(EventState::Consumed);
             }
-            k if k == Key::Esc => {
+            (SearchFocus::Input, Key::Esc) => {
+                if self.query.value().is_empty() {
+                    self.audio_presentation_list.reset();
+                    self.lyrics_presentation_list.reset();
+                    self.global_state.lock().unwrap().focus = Focus::Home;
+
+                    return Ok(EventState::Consumed);
+                }
+
                 self.query.reset();
+
                 return Ok(EventState::Consumed);
             }
-            Key::Char(v) => {
-                self.add_to_query(KeyEvent::new(KeyCode::Char(v), KeyModifiers::NONE));
+            (SearchFocus::Input, Key::Backspace) => {
+                self.query.handle_event(&Event::Key(KeyEvent::new(
+                    KeyCode::Backspace,
+                    KeyModifiers::NONE,
+                )));
+                return Ok(EventState::Consumed);
+            }
+            (SearchFocus::Input, Key::Char(v)) => {
+                self.query.handle_event(&Event::Key(KeyEvent::new(
+                    KeyCode::Char(v),
+                    KeyModifiers::NONE,
+                )));
+                return Ok(EventState::Consumed);
+            }
+            (SearchFocus::Input, Key::Enter) => {
+                self.search().await;
+                self.global_state.lock().unwrap().mode = InputMode::Nav;
+                self.focus = SearchFocus::Audio;
+
+                // Select the first list items if none is selected.
+                if self.audio_state.selected().is_none() {
+                    self.audio_state.select(Some(0));
+                }
+
+                return Ok(EventState::Consumed);
+            }
+            // Audio bindings.
+            (SearchFocus::Audio, Key::Up) => {
+                if self.audio_state.selected().is_some() {
+                    self.audio_state.select(Some(
+                        self.audio_state.selected().unwrap_or(0).saturating_sub(1),
+                    ));
+                }
+
+                return Ok(EventState::Consumed);
+            }
+            (SearchFocus::Audio, Key::Down) => {
+                if self.audio_state.selected().is_some() {
+                    self.audio_state.select(Some(
+                        self.audio_state.selected().unwrap_or(0).saturating_add(1),
+                    ));
+                }
+
+                return Ok(EventState::Consumed);
+            }
+            (SearchFocus::Audio, Key::Enter) => {
+                if let Some(index) = self.audio_state.selected() {
+                    song.video_id = self.audio_results[index].id.to_string();
+                }
+
+                self.focus = SearchFocus::Lyrics;
+                if self.lyrics_state.selected().is_none() {
+                    self.lyrics_state.select(Some(0));
+                }
+
+                return Ok(EventState::Consumed);
+            }
+            // Lyrics bindings.
+            (SearchFocus::Lyrics, Key::Up) => {
+                if self.lyrics_state.selected().is_some() {
+                    self.lyrics_state.select(Some(
+                        self.lyrics_state.selected().unwrap_or(0).saturating_sub(1),
+                    ));
+                }
+
+                return Ok(EventState::Consumed);
+            }
+            (SearchFocus::Lyrics, Key::Down) => {
+                if self.lyrics_state.selected().is_some() {
+                    self.lyrics_state.select(Some(
+                        self.lyrics_state.selected().unwrap_or(0).saturating_add(1),
+                    ));
+                }
+
+                return Ok(EventState::Consumed);
+            }
+            (SearchFocus::Lyrics, Key::Enter) => {
+                if let Some(index) = self.lyrics_state.selected() {
+                    song.lyric_id = self.lyric_results[index].id.to_string();
+                    song.title = self.lyric_results[index].title.to_string();
+                    song.artist = self.lyric_results[index].artist.to_string();
+                    song.synced_lyrics = self.lyric_results[index].synced_lyrics.to_string();
+
+                    // After selecting lyrics, push the song to the queue and return to Queue view.
+                    {
+                        let mut global_state = self.global_state.lock().unwrap();
+                        global_state.songs.push(song.clone());
+                        global_state.mode = InputMode::Nav;
+                        global_state.focus = Focus::Queue;
+                    }
+                }
+
                 return Ok(EventState::Consumed);
             }
             _ => {}
         }
+
         Ok(EventState::NotConsumed)
     }
 }
@@ -118,12 +287,19 @@ impl<'b> Search<'b> {
 impl RenderableComponent for Search<'_> {
     fn render<B: Backend>(
         &self,
-        f: &mut Frame<B>,
+        f: &mut Frame,
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.query.visual_scroll(width as usize);
+
+        let vert_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(3), Constraint::Percentage(100)])
+            .split(rect);
+
+        let (search, body) = (vert_chunks[0], vert_chunks[1]);
 
         let input = Paragraph::new(self.query.value())
             .alignment(Alignment::Center)
@@ -149,8 +325,35 @@ impl RenderableComponent for Search<'_> {
                     ])),
             );
 
-        f.render_widget(input, rect);
+        f.render_widget(input, search);
 
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(body);
+
+        let (audio, lyrics) = (chunks[0], chunks[1]);
+
+        let audio_list = List::new(self.audio_presentation_list.items.clone())
+            .block(
+                Block::default()
+                    .title("Audio Results")
+                    .borders(Borders::ALL),
+            )
+            .highlight_style(Style::default().bg(Color::LightBlue).fg(Color::Black))
+            .highlight_symbol(">> ");
+
+        let lyrics_list = List::new(self.lyrics_presentation_list.items.clone())
+            .block(
+                Block::default()
+                    .title("Lyrics Results")
+                    .borders(Borders::ALL),
+            )
+            .highlight_style(Style::default().bg(Color::LightGreen).fg(Color::Black))
+            .highlight_symbol(">> ");
+
+        f.render_stateful_widget(audio_list, audio, &mut self.audio_state.clone());
+        f.render_stateful_widget(lyrics_list, lyrics, &mut self.lyrics_state.clone());
         Ok(())
     }
 }

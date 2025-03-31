@@ -1,7 +1,7 @@
 use ratatui::style::Stylize;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
+use block::Title;
 use super::RenderableComponent;
 use crate::app::GlobalState;
 use color_eyre::eyre::Result;
@@ -39,7 +39,7 @@ impl Timer {
 impl RenderableComponent for Timer {
     fn render<B: Backend>(
         &self,
-        f: &mut Frame<B>,
+        f: &mut Frame,
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
@@ -56,7 +56,7 @@ impl RenderableComponent for Timer {
             self.song_remaining_time.as_secs() % 60,
             "next song placeholder"
         );
-        let block = Block::default().title(block::Title::from(s.dim()).alignment(Alignment::Right));
+        let block = Block::default().title(Title::from(s.dim()).alignment(Alignment::Right));
         f.render_widget(block, rect);
         Ok(())
     }

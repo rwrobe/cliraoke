@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
 
   loop {
     terminal.draw(|f| {
-      if let Err(err) = app.render(f, f.size()) {
+      if let Err(err) = app.render::<CrosstermBackend<io::Stdout>>(f, f.area()) {
         println!("Error thrown: {:?}", err);
         std::process::exit(1);
       }

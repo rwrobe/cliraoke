@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 pub(crate) mod youtube;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AudioResult {
     pub id: String,
     pub title: String,

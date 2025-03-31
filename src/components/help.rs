@@ -15,7 +15,7 @@ impl Help {
 impl RenderableComponent for Help {
   fn render<B: Backend>(
     &self,
-    f: &mut ratatui::Frame<B>,
+    f: &mut Frame,
     rect: Rect,
     state: Arc<Mutex<GlobalState>>,
   ) -> anyhow::Result<()> {

@@ -19,7 +19,7 @@ impl Title {
 impl RenderableComponent for Title {
     fn render<B: Backend>(
         &self,
-        f: &mut Frame<B>,
+        f: &mut Frame,
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
