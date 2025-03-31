@@ -42,7 +42,7 @@ impl RenderableComponent for Queue {
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
-        let songs = state.lock().unwrap().songs.clone();
+        let songs = self.global_state.lock().unwrap().songs.clone();
         let block = Block::new()
             .title(Line::from(format!(
                 " {} songs in the queue ",

@@ -2,6 +2,7 @@ use std::time::Duration;
 use strum::Display;
 use crate::components::timer::Timer;
 use crate::models::song::{Song, SongList};
+use crate::state::SongState::Paused;
 
 #[derive(Default, PartialEq, Display, Debug)]
 pub enum InputMode {
@@ -21,8 +22,16 @@ pub enum Focus {
     Timer,
 }
 
+#[derive(Debug, Default, PartialEq)]
+pub enum SongState{
+    #[default]
+    Playing,
+    Paused,
+}
+
 #[derive(Default, PartialEq, Debug)]
 pub struct GlobalState {
+    pub(crate) song_state: SongState,
     pub(crate) current_song: Option<Song>,
     pub(crate) current_song_index: usize,
     pub(crate) songs: SongList,
@@ -39,6 +48,7 @@ impl GlobalState {
 
     pub fn default() -> Self {
         Self {
+            song_state: Paused,
             current_song: None,
             current_song_index: 0,
             songs: Vec::new(),

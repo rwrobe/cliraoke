@@ -95,12 +95,14 @@ impl AudioService for YouTube {
         }
     }
 
-    fn play(&self, url: &str) {
+    fn play(&self, id: &str) {
         // Create a Command to run ffplay with silenced output
         let mut cmd = Command::new("ffplay");
 
+        let audio_url = get_youtube_audio_url(id);
+
         // Add arguments
-        cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", url]);
+        cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", audio_url.unwrap().as_str()]);
 
         // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
         #[cfg(target_family = "unix")]
@@ -119,6 +121,7 @@ impl AudioService for YouTube {
         match cmd.status() {
             Ok(status) => {
                 if status.success() {
+                    // TODO: play next song in queue
                     println!("Audio playback completed via ffplay");
                 } else {
                     println!("ffplay failed with status: {}", status);

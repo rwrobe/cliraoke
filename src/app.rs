@@ -2,7 +2,7 @@ use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::models::song::SongList;
 pub(crate) use crate::state::GlobalState;
-use crate::state::{Focus, InputMode};
+use crate::state::{Focus, InputMode, SongState};
 use crate::{
     components::{
         help::Help, lyrics::Lyrics, queue::Queue, search::Search, timer::Timer, title::Title,
@@ -40,7 +40,7 @@ impl<'a> AppComponent<'a> {
             lyrics_provider: lp,
             audio_provider: ap,
             help: Help::new(),
-            lyrics: Lyrics::new(),
+            lyrics: Lyrics::new(global_state.clone()),
             queue: Queue::new(global_state.clone()),
             search: Search::new(global_state.clone(), lp, ap),
             timer: Timer::new(global_state.clone()),
@@ -57,6 +57,29 @@ impl<'a> AppComponent<'a> {
             let seconds = self.tick_accumulator / 1000;
             self.state.lock().unwrap().session_time_elapsed += std::time::Duration::from_secs(seconds);
             self.tick_accumulator %= 1000;
+        }
+
+        {
+            let mut state = self.state.lock().unwrap();
+            // Move the next song in the queue to the current song if nothing is playing.
+            if state.current_song.is_none() && !state.songs.is_empty() {
+                state.current_song = Some(state.songs.remove(0));
+                state.current_song_index = 0;
+            }
+            // Increase time elapsed for current song.
+            if let Some(song) = &state.current_song {
+                if state.song_state == SongState::Playing {
+                    let seconds = self.tick_accumulator / 1000;
+                    state.song_time_elapsed += std::time::Duration::from_secs(seconds);
+                }
+            }
+        }
+    }
+
+    fn play(&mut self) {
+        let mut state = self.state.lock().unwrap();
+        if let Some(song) = &state.current_song {
+            self.audio_provider.play(song.video_id.as_str())
         }
     }
 
@@ -94,10 +117,19 @@ impl<'a> AppComponent<'a> {
                 }
                 _ => {}
             },
-            Focus::Lyrics => {
-                // if self.lyrics.event(key).await?.is_consumed() {
-                //     return Ok(EventState::Consumed);
-                // }
+            Focus::Lyrics => match key {
+                Key::Char(' ') => {
+                    {
+                        let mut state = self.state.lock().unwrap();
+                        if state.song_state == SongState::Playing {
+                            // TODO: pause with ffmpeg
+                        } else {
+                            state.song_state = SongState::Playing;
+                        }
+                    }
+                    self.play();
+                }
+                _ => {}
             }
             _ => match key {
                 Key::Esc => {

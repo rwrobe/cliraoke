@@ -8,26 +8,19 @@ use ratatui::widgets::BorderType;
 use ratatui::{
     layout::Rect,
     style::{Color, Style, Stylize},
-    widgets::{
-        Block, Borders,
-    },
+    widgets::{Block, Borders},
     Frame,
 };
 use std::sync::{Arc, Mutex};
 
-#[derive(Default)]
 pub struct Lyrics {
-    pub song: Option<Song>,
+    pub global_state: Arc<Mutex<GlobalState>>,
 }
 
 impl Lyrics {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    fn default() -> Self {
+    pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
         Self {
-            song: None,
+            global_state: state,
         }
     }
 }
@@ -39,14 +32,29 @@ impl RenderableComponent for Lyrics {
         rect: Rect,
         state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
-        let block = Block::default()
-            .title(Line::from(" Song by Artist "))
-            .title_alignment(Alignment::Center)
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Yellow));
+        let current_song = self.global_state.lock().unwrap().current_song.clone();
 
-        f.render_widget(block, rect); // should be stateful
+        match current_song {
+            Some(song) => {
+                let block = Block::default()
+                    .title(Line::from(format!(" {} by {} ", song.title, song.artist,)))
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Yellow));
+                f.render_widget(block, rect);
+                // Render the lyrics here
+            }
+            None => {
+                let block = Block::default()
+                    .title(Line::from(" Press / to search for your first song "))
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Yellow));
+                f.render_widget(block, rect);
+            }
+        }
 
         Ok(())
     }

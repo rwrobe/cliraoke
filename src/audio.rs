@@ -13,5 +13,5 @@ pub struct AudioResult {
 pub trait AudioService {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>>;
     async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult>;
-    fn play(&self, url: &str);
+    fn play(&self, id: &str);
 }
