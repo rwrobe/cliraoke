@@ -1,4 +1,4 @@
-use crate::lyrics::{LyricsFetcher, LyricsResult};
+use crate::lyrics::{Lyric, LyricResponse, LyricsFetcher, LyricsResult};
 
 pub struct LRCLib;
 
@@ -53,8 +53,33 @@ impl LyricsFetcher for LRCLib {
         Ok(lyrics.collect())
     }
 
-    async fn fetch(&self, id: &str) -> anyhow::Result<String> {
-        todo!()
+    async fn parse(&self, synced: String) -> anyhow::Result<LyricsMap> {
+        // Create regex to extract timestamp and text
+        let re = Regex::new(r"^\[(\d+):(\d+)\.(\d+)\]\s*(.*)$")?;
+
+        // Create a map to store timestamp -> lyric pairs
+        let mut time_to_lyric = LyricsMap::new();
+
+        // Process each line
+        for line in synced.lines() {
+            if let Some(captures) = re.captures(line) {
+                // Convert timestamp parts to milliseconds as u64
+                let minutes: u64 = captures[1].parse()?;
+                let seconds: u64 = captures[2].parse()?;
+                let milliseconds: u64 = captures[3].parse()?;
+
+                // Calculate total milliseconds
+                let timestamp_ms = minutes * 60_000 + seconds * 1000 + milliseconds;
+
+                // Get the lyric text
+                let lyric_text = captures[4].to_string();
+
+                // Store in map
+                time_to_lyric.insert(timestamp_ms, lyric_text);
+            }
+        }
+
+        Ok(time_to_lyric)
     }
 
     fn play(&self, url: &str) {
@@ -71,6 +96,7 @@ use serde_json::{Number, Value};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 use std::{thread, u64};
+use crate::models::song::LyricsMap;
 
 fn deserialize_u64<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
@@ -80,38 +106,6 @@ where
     Ok(s.to_string())
 }
 
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LyricResponse {
-    #[serde(deserialize_with = "deserialize_u64")]
-    pub(crate) id: String,
-    pub(crate) track_name: String,
-    pub(crate) artist_name: String,
-    _album_name: String,
-    _instrumental: bool,
-    _plain_lyrics: Option<String>,
-    pub(crate) synced_lyrics: Option<String>,
-    // TODO: Is this even possible?
-    pub(crate) message: Option<Message>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Message {
-    pub(crate) synced_lyrics: Option<String>,
-}
-
-// This is for print purposes only, perhaps the abstraction should not be here but
-// in the future print to std layer?
-#[derive(Debug)]
-pub struct Lyric {
-    pub(crate) id: String,
-    pub(crate) artist: String,
-    pub(crate) title: String,
-    pub(crate) synced_lyrics: String,
-}
-
-type LyricsMap = BTreeMap<u64, String>;
 
 pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
     let client = Client::new(); // Create a new HTTP client

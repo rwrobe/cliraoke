@@ -63,8 +63,12 @@ impl<'a> AppComponent<'a> {
 
     // tick is called every second
     pub(crate) fn tick(&mut self, tick_rate_ms: u64) {
+        // Our "tick" rate (refresh rate) is defined in ms.
         self.tick_accumulator += tick_rate_ms;
 
+        // We want to convert this into seconds in a way that works for arbitrary ms values.
+        // NB: The ms must be even divisors of 1000 for the second conversion to be accurate.
+        // Use other values to dilate time.
         if self.tick_accumulator >= 1000 {
             let seconds = self.tick_accumulator / 1000;
             self.state.lock().unwrap().session_time_elapsed +=
@@ -72,9 +76,9 @@ impl<'a> AppComponent<'a> {
             self.tick_accumulator %= 1000;
         }
 
+        // Move the next song in the queue to the current song if nothing is playing.
         {
             let mut state = self.state.lock().unwrap();
-            // Move the next song in the queue to the current song if nothing is playing.
             if state.current_song.is_none() && !state.songs.is_empty() {
                 let song = Some(state.songs.remove(0));
                 state.current_song = song.clone();
@@ -83,6 +87,9 @@ impl<'a> AppComponent<'a> {
         }
     }
 
+    // play will start the song and set the SongState to Playing.
+    // TODO: ffmpeg doesn't support pausing. For this we probably need soloud, which doesn't support
+    // buffering from a URL.
     fn play(&mut self) {
         let mut state = self.state.lock().unwrap();
         if let Some(song) = &state.current_song {
@@ -98,6 +105,11 @@ impl<'a> AppComponent<'a> {
         }
     }
 
+    // event handles keystrokes and updates the state of the application.
+    //
+    // This is organized by "focus" (the component that is currently active). Child components
+    // are given priority in handling events, so the event bubbles up the component hierarchy like
+    // JS events in the DOM.
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
         let focus = self.state.lock().unwrap().focus.clone();
 
@@ -110,6 +122,11 @@ impl<'a> AppComponent<'a> {
                 match key {
                     Key::Char('u') => {
                         self.state.lock().unwrap().focus = Focus::Home;
+                    }
+                    Key::Char('/') => {
+                        let mut state = self.state.lock().unwrap();
+                        state.mode = InputMode::Input;
+                        state.focus = Focus::Search;
                     }
                     _ => {}
                 }
@@ -228,54 +245,5 @@ impl<'a> AppComponent<'a> {
         }
 
         Ok(())
-    }
-
-    async fn components_event(&mut self, key: Key) -> Result<EventState> {
-        let focus = self.state.lock().unwrap().focus.clone();
-        match focus {
-            // Focus::Lyrics => {
-            //     if self.lyrics.event(key).await?.is_consumed() {
-            //         return Ok(EventState::Consumed);
-            //     }
-            // }
-            Focus::Queue => {
-                if self.queue.event(key).await?.is_consumed() {
-                    return Ok(EventState::Consumed);
-                }
-            }
-            Focus::Search => {
-                if self.search.event(key).await?.is_consumed() {
-                    return Ok(EventState::Consumed);
-                }
-            }
-            _ => {}
-        }
-        Ok(EventState::NotConsumed)
-    }
-
-    // TODO
-    async fn move_focus(&mut self, key: Key) -> Result<EventState> {
-        let focus = self.state.lock().unwrap().focus.clone();
-        match focus {
-            // Focus::Lyrics => {
-            //     if key == Key::Esc.down {
-            //         self.focus = self.lyrics.active_focus();
-            //     }
-            // }
-            Focus::Queue => {
-                if key == Key::Char('u') {
-                    self.state.lock().unwrap().focus = Focus::Queue
-                }
-            }
-            Focus::Search => {
-                if key == Key::Char('/') || key == Key::Enter {
-                    self.state.lock().unwrap().focus = Focus::Search
-                }
-            }
-            _ => {
-                self.state.lock().unwrap().focus = Focus::Lyrics;
-            }
-        }
-        Ok(EventState::NotConsumed)
     }
 }

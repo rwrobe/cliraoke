@@ -267,6 +267,16 @@ impl<'b> Search<'b> {
                     song.title = self.lyric_results[index].title.to_string();
                     song.artist = self.lyric_results[index].artist.to_string();
                     song.synced_lyrics = self.lyric_results[index].synced_lyrics.to_string();
+                    let map = self.lyrics_service.parse(self.lyric_results[index].synced_lyrics.clone()).await;
+
+                    match map {
+                        Ok(lyric_map) => {
+                            song.lyric_map = Some(lyric_map);
+                        }
+                        Err(e) => {
+                            println!("Error parsing lyrics: {}", e);
+                        }
+                    }
 
                     // After selecting lyrics, push the song to the queue and return to Queue view.
                     {
@@ -275,6 +285,11 @@ impl<'b> Search<'b> {
                         global_state.mode = InputMode::Nav;
                         global_state.focus = Focus::Queue;
                     }
+
+                    // Clear component state.
+                    self.query.reset();
+                    self.audio_presentation_list.reset();
+                    self.lyrics_presentation_list.reset();
                 }
 
                 return Ok(EventState::Consumed);
