@@ -43,14 +43,19 @@ impl<'a> AppComponent<'a> {
     ) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
+            // Injected services.
             lyrics_fetcher: lp,
             audio_fetcher: ap,
             audio_service: aus,
+
+            // UI Components.
             help: Help::new(),
             lyrics: Lyrics::new(global_state.clone()),
             queue: Queue::new(global_state.clone()),
             search: Search::new(global_state.clone(), lp, ap),
             timer: Timer::new(global_state.clone()),
+
+            // State.
             tick_accumulator: 0,
             state: global_state.clone(),
         }
@@ -74,13 +79,6 @@ impl<'a> AppComponent<'a> {
                 let song = Some(state.songs.remove(0));
                 state.current_song = song.clone();
                 state.current_song_index = 0;
-
-                let audio_service = self.audio_service.clone();
-                let video_id = song.as_ref().unwrap().video_id.clone();
-
-                let _play_thread = crossbeam::scope(|s| {
-                    s.spawn(move |_| audio_service.play(video_id.as_str()));
-                });
             }
         }
     }
@@ -89,7 +87,14 @@ impl<'a> AppComponent<'a> {
         let mut state = self.state.lock().unwrap();
         if let Some(song) = &state.current_song {
             self.audio_service.play(song.video_id.as_str());
-            state.song_state = SongState::Playing
+
+            let audio_service = self.audio_service.clone();
+            let video_id = song.video_id.clone();
+
+            let _play_thread = crossbeam::scope(|s| {
+                s.spawn(move |_| audio_service.play(video_id.as_str()));
+            });
+            state.song_state = SongState::Playing;
         }
     }
 
