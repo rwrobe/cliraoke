@@ -1,4 +1,4 @@
-use crate::audio::{AudioService, AudioResult};
+use crate::audio::{AudioService, AudioResult, AudioFetcher};
 use anyhow::anyhow;
 use reqwest::Client;
 use serde_json::Value;
@@ -15,10 +15,56 @@ impl YouTube {
     pub(crate) fn new(api_key: String) -> Self {
         YouTube { api_key }
     }
+
+    fn get_url(&self, id: &str) -> Option<String> {
+        let url = format!("https://www.youtube.com/watch?v={}", id);
+
+        let output = Command::new("yt-dlp")
+            .args([
+                "-f",
+                "bestaudio",
+                "--get-url",
+                "--extract-audio",
+                "--audio-format",
+                "mp3",
+                &url,
+            ])
+            .output()
+            .expect("Failed to execute yt-dlp");
+
+        if output.status.success() {
+            let audio_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            Some(audio_url)
+        } else {
+            let error = String::from_utf8_lossy(&output.stderr);
+            eprintln!("yt-dlp failed: {}", error);
+
+            // Try a different approach - maybe without audio format specification
+            println!("Retrying with simplified parameters...");
+            let retry_output = Command::new("yt-dlp")
+                .args(["-f", "bestaudio", "--get-url", &url])
+                .output()
+                .expect("Failed to execute yt-dlp");
+
+            if retry_output.status.success() {
+                let audio_url = String::from_utf8_lossy(&retry_output.stdout)
+                    .trim()
+                    .to_string();
+                println!("Retry successful. Got audio URL: {}", audio_url);
+                Some(audio_url)
+            } else {
+                eprintln!(
+                    "Retry also failed: {}",
+                    String::from_utf8_lossy(&retry_output.stderr)
+                );
+                None
+            }
+        }
+    }
 }
 
 #[async_trait]
-impl AudioService for YouTube {
+impl AudioFetcher for YouTube {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>> {
         let client = Client::new(); // Create a new HTTP client
         let page_token = String::new(); // Token to handle pagination
@@ -83,23 +129,22 @@ impl AudioService for YouTube {
         Ok(audios)
     }
 
-    async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult> {
-        let audio_url = get_youtube_audio_url(id);
-        match audio_url {
-            Some(url) => Ok(AudioResult {
-                id: id.to_string(),
-                title: String::new(),  // Placeholder for title
-                artist: String::new(), // Placeholder for artist
-            }),
-            None => Err(anyhow!("Failed to fetch audio URL")),
-        }
+    // TODO: This method is only necessary if we need to download the file, e.g., for soloud.
+    async fn fetch(& self, id: &str) -> anyhow::Result<AudioResult> {
+        Ok(AudioResult{
+            id: id.to_string(),
+            title: "Dummy Title".to_string(),
+            artist: "Dummy Artist".to_string(),
+        })
     }
+}
 
+impl AudioService for YouTube {
     fn play(&self, id: &str) {
         // Create a Command to run ffplay with silenced output
         let mut cmd = Command::new("ffplay");
 
-        let audio_url = get_youtube_audio_url(id);
+        let audio_url = self.get_url(id);
 
         // Add arguments
         cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", audio_url.unwrap().as_str()]);
@@ -132,59 +177,8 @@ impl AudioService for YouTube {
             }
         }
     }
-}
 
-pub struct Video {
-    pub id: String,
-    pub title: String,
-    pub artist: String,
-}
-
-// Get the direct audio stream URL using yt-dlp
-pub fn get_youtube_audio_url(video_id: &str) -> Option<String> {
-    let url = format!("https://www.youtube.com/watch?v={}", video_id);
-
-    let output = Command::new("yt-dlp")
-        .args([
-            "-f",
-            "bestaudio",
-            "--get-url",
-            "--extract-audio",
-            "--audio-format",
-            "mp3",
-            &url,
-        ])
-        .output()
-        .expect("Failed to execute yt-dlp");
-
-    if output.status.success() {
-        let audio_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        Some(audio_url)
-    } else {
-        let error = String::from_utf8_lossy(&output.stderr);
-        eprintln!("yt-dlp failed: {}", error);
-
-        // Try a different approach - maybe without audio format specification
-        println!("Retrying with simplified parameters...");
-        let retry_output = Command::new("yt-dlp")
-            .args(["-f", "bestaudio", "--get-url", &url])
-            .output()
-            .expect("Failed to execute yt-dlp");
-
-        if retry_output.status.success() {
-            let audio_url = String::from_utf8_lossy(&retry_output.stdout)
-                .trim()
-                .to_string();
-            println!("Retry successful. Got audio URL: {}", audio_url);
-            Some(audio_url)
-        } else {
-            eprintln!(
-                "Retry also failed: {}",
-                String::from_utf8_lossy(&retry_output.stderr)
-            );
-            None
-        }
+    fn pause(&self) {
+        todo!()
     }
 }
-
-pub fn play_audio(url: &str) {}

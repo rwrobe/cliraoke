@@ -1,5 +1,7 @@
+use crate::audio::{AudioFetcher, AudioService};
 use crate::components::RenderableComponent;
 use crate::events::EventState;
+use crate::lyrics::LyricsFetcher;
 use crate::models::song::SongList;
 pub(crate) use crate::state::GlobalState;
 use crate::state::{Focus, InputMode, SongState};
@@ -10,6 +12,7 @@ use crate::{
     events::Key,
 };
 use color_eyre::eyre::Result;
+use crossbeam;
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -18,12 +21,11 @@ use ratatui::{
 use std::cmp::PartialEq;
 use std::sync::{Arc, Mutex};
 use strum::Display;
-use crate::audio::AudioService;
-use crate::lyrics::LyricsService;
 
 pub struct AppComponent<'a> {
-    lyrics_provider: &'a dyn LyricsService,
-    audio_provider: &'a dyn AudioService,
+    lyrics_fetcher: &'a dyn LyricsFetcher,
+    audio_fetcher: &'a dyn AudioFetcher,
+    audio_service: &'a dyn AudioService,
     help: Help,
     lyrics: Lyrics,
     queue: Queue,
@@ -34,11 +36,16 @@ pub struct AppComponent<'a> {
 }
 
 impl<'a> AppComponent<'a> {
-    pub fn new(lp: &'a (dyn LyricsService + 'a), ap: &'a (dyn AudioService + 'a)) -> Self {
+    pub fn new(
+        lp: &'a (dyn LyricsFetcher + 'a),
+        ap: &'a (dyn AudioFetcher + 'a),
+        aus: &'a (dyn AudioService + 'a),
+    ) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
-            lyrics_provider: lp,
-            audio_provider: ap,
+            lyrics_fetcher: lp,
+            audio_fetcher: ap,
+            audio_service: aus,
             help: Help::new(),
             lyrics: Lyrics::new(global_state.clone()),
             queue: Queue::new(global_state.clone()),
@@ -55,7 +62,8 @@ impl<'a> AppComponent<'a> {
 
         if self.tick_accumulator >= 1000 {
             let seconds = self.tick_accumulator / 1000;
-            self.state.lock().unwrap().session_time_elapsed += std::time::Duration::from_secs(seconds);
+            self.state.lock().unwrap().session_time_elapsed +=
+                std::time::Duration::from_secs(seconds);
             self.tick_accumulator %= 1000;
         }
 
@@ -63,15 +71,16 @@ impl<'a> AppComponent<'a> {
             let mut state = self.state.lock().unwrap();
             // Move the next song in the queue to the current song if nothing is playing.
             if state.current_song.is_none() && !state.songs.is_empty() {
-                state.current_song = Some(state.songs.remove(0));
+                let song = Some(state.songs.remove(0));
+                state.current_song = song.clone();
                 state.current_song_index = 0;
-            }
-            // Increase time elapsed for current song.
-            if let Some(song) = &state.current_song {
-                if state.song_state == SongState::Playing {
-                    let seconds = self.tick_accumulator / 1000;
-                    state.song_time_elapsed += std::time::Duration::from_secs(seconds);
-                }
+
+                let audio_service = self.audio_service.clone();
+                let video_id = song.as_ref().unwrap().video_id.clone();
+
+                let _play_thread = crossbeam::scope(|s| {
+                    s.spawn(move |_| audio_service.play(video_id.as_str()));
+                });
             }
         }
     }
@@ -79,7 +88,8 @@ impl<'a> AppComponent<'a> {
     fn play(&mut self) {
         let mut state = self.state.lock().unwrap();
         if let Some(song) = &state.current_song {
-            self.audio_provider.play(song.video_id.as_str())
+            self.audio_service.play(song.video_id.as_str());
+            state.song_state = SongState::Playing
         }
     }
 
@@ -130,7 +140,7 @@ impl<'a> AppComponent<'a> {
                     self.play();
                 }
                 _ => {}
-            }
+            },
             _ => match key {
                 Key::Esc => {
                     self.state.lock().unwrap().focus = Focus::Home;

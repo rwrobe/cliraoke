@@ -50,6 +50,7 @@ async fn main() -> Result<()> {
   let mut app = AppComponent::new(
     &lyrics,
     &audio,
+    &audio,
   );
   terminal.clear()?;
 

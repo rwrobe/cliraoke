@@ -1,9 +1,9 @@
 use super::{Frame, RenderableComponent, ResettableComponent};
 use crate::app::GlobalState;
-use crate::audio::{AudioResult, AudioService};
+use crate::audio::{AudioResult, AudioFetcher};
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
-use crate::lyrics::{LyricsResult, LyricsService};
+use crate::lyrics::{LyricsResult, LyricsFetcher};
 use crate::models::song::Song;
 use crate::state::{Focus, InputMode};
 use color_eyre::eyre::Result;
@@ -36,12 +36,12 @@ impl ResettableComponent for StatefulList<'_> {
 pub struct Search<'a> {
     audio_presentation_list: StatefulList<'a>,
     audio_results: Vec<AudioResult>,
-    audio_service: &'a dyn AudioService,
+    audio_fetcher: &'a dyn AudioFetcher,
     audio_state: ListState,
 
     lyrics_presentation_list: StatefulList<'a>,
     lyric_results: Vec<LyricsResult>,
-    lyrics_service: &'a dyn LyricsService,
+    lyrics_service: &'a dyn LyricsFetcher,
     lyrics_state: ListState,
 
     focus: SearchFocus,
@@ -52,13 +52,13 @@ pub struct Search<'a> {
 impl<'b> Search<'b> {
     pub fn new(
         state: Arc<Mutex<GlobalState>>,
-        lp: &'b (dyn LyricsService + 'b),
-        ap: &'b (dyn AudioService + 'b),
+        lp: &'b (dyn LyricsFetcher + 'b),
+        ap: &'b (dyn AudioFetcher + 'b),
     ) -> Self {
         Self {
             audio_presentation_list: StatefulList::default(),
             audio_results: vec![],
-            audio_service: ap,
+            audio_fetcher: ap,
             audio_state: ListState::default(),
 
             lyrics_presentation_list: StatefulList::default(),
@@ -79,7 +79,7 @@ impl<'b> Search<'b> {
         }
 
         // Search audio.
-        let audio_results = self.audio_service.search(query).await;
+        let audio_results = self.audio_fetcher.search(query).await;
         match audio_results {
             Ok(results) => {
                 self.audio_results = results.clone();

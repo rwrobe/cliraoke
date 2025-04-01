@@ -15,7 +15,7 @@ pub struct LyricsResult {
 }
 
 #[async_trait]
-pub trait LyricsService {
+pub trait LyricsFetcher {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<LyricsResult>>;
     async fn fetch(&self, id: &str) -> anyhow::Result<String>;
     fn play(&self, url: &str);

@@ -1,4 +1,4 @@
-use crate::lyrics::{LyricsService, LyricsResult};
+use crate::lyrics::{LyricsFetcher, LyricsResult};
 
 pub struct LRCLib;
 
@@ -9,10 +9,10 @@ impl LRCLib {
 }
 
 #[async_trait]
-impl LyricsService for LRCLib {
+impl LyricsFetcher for LRCLib {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<LyricsResult>> {
         let client = Client::new(); // Create a new HTTP client
-        // let mut lyrics = Vec::new(); // Initialize a vector to store videos
+                                    // let mut lyrics = Vec::new(); // Initialize a vector to store videos
         let base_url = "https://lrclib.net/api/search";
         let url = format!("{}?q={}", base_url, query);
 
@@ -27,7 +27,6 @@ impl LyricsService for LRCLib {
             .json()
             .await
             .expect("should parse the value as json"); // Parse the response body as JSON array
-
 
         let lyrics = json
             .iter()
@@ -63,6 +62,8 @@ impl LyricsService for LRCLib {
     }
 }
 
+use crate::audio::AudioResult;
+use async_trait::async_trait;
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Deserializer};
@@ -70,8 +71,6 @@ use serde_json::{Number, Value};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 use std::{thread, u64};
-use async_trait::async_trait;
-use crate::audio::AudioResult;
 
 fn deserialize_u64<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
@@ -89,7 +88,6 @@ pub struct LyricResponse {
     pub(crate) track_name: String,
     pub(crate) artist_name: String,
     _album_name: String,
-    _duration: f64,
     _instrumental: bool,
     _plain_lyrics: Option<String>,
     pub(crate) synced_lyrics: Option<String>,
@@ -117,7 +115,7 @@ type LyricsMap = BTreeMap<u64, String>;
 
 pub async fn search_lyrics(query: &str) -> Result<Vec<Lyric>, anyhow::Error> {
     let client = Client::new(); // Create a new HTTP client
-    // let mut lyrics = Vec::new(); // Initialize a vector to store videos
+                                // let mut lyrics = Vec::new(); // Initialize a vector to store videos
     let base_url = "https://lrclib.net/api/search";
     let url = format!("{}?q={}", base_url, query);
 
