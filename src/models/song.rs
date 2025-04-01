@@ -13,10 +13,27 @@ pub struct Song {
     pub(crate) title: String,
     #[serde(rename = "artist_name")]
     pub(crate) artist: String,
-    pub(crate) duration: Duration,
+    _duration: Duration,
+    pub(crate) duration_ms: u64,
     pub(crate) synced_lyrics: String,
     pub(crate) lyric_map: Option<LyricsMap>,
     pub message: (),
+}
+
+impl Song {
+    pub fn new() -> Self {
+        Song {
+            lyric_id: "".to_string(),
+            video_id: "".to_string(),
+            title: "".to_string(),
+            artist: "".to_string(),
+            synced_lyrics: "".to_string(),
+            lyric_map: None,
+            _duration: Duration::new(0, 0),
+            duration_ms: 0,
+            message: (),
+        }
+    }
 }
 
 pub type SongList = Vec<Song>;

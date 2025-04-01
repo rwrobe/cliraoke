@@ -1,10 +1,10 @@
 [package]
-name = "ratatui-counter"
-version = "0.1.0"
-edition = "2021"
-description = "Counter application with async-template"
-repository = "https://github.com/ratatui-org/ratatui-counter"
-authors = ["Dheepak Krishnamurthy"]
+name = "cliraoke"
+version = "0.2.0"
+edition = "2024"
+description = "Karaoke for the command line"
+repository = "https://github.com/rwrobe/cliraoke"
+authors = ["Rob Ward", "Daniel Lee Yochum Jr."]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,3 +24,4 @@ tui-input = { version = "0.8.0", features = ["serde"] }
 regex = "1.11.1"
 async-trait = "0.1.88"
 crossbeam = "0.8.4"
+futures = "0.3.31"

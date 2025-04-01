@@ -1,6 +1,8 @@
 use crate::util::deserialize_u64;
 use async_trait::async_trait;
+use tokio::time::Instant;
 use crate::audio::AudioResult;
+use crate::models::song::Song;
 
 pub(crate) mod lrclib;
 
@@ -49,6 +51,9 @@ pub struct Lyric {
 #[async_trait]
 pub trait LyricsFetcher {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<LyricsResult>>;
-    async fn parse(&self, synced: String) -> anyhow::Result<LyricsMap>;
-    fn play(&self, url: &str);
+    async fn parse(&self, synced: String) -> anyhow::Result<Option<crate::models::song::LyricsMap>>;
+}
+
+pub trait LyricsService {
+    fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<String>;
 }

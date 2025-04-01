@@ -49,9 +49,10 @@ impl RenderableComponent for Timer {
 
         let (left, right) = (rects[0], rects[1]);
 
+        // Song remaining time as ms.
         let song_remaining_time = global_state.songs.get(global_state.current_song_index)
-            .map(|song| song.duration - global_state.song_time_elapsed)
-            .unwrap_or(Duration::new(0, 0));
+            .map(|song| song.duration_ms - global_state.current_song_elapsed)
+            .unwrap_or(0);
 
         let s = format!(
             "Singing for {:02}:{:02}",
@@ -66,8 +67,8 @@ impl RenderableComponent for Timer {
         if next_song.is_some() {
             let next_song_remaining = format!(
                 ". {:02}:{:02} until {}",
-                song_remaining_time.as_secs() / 60,
-                song_remaining_time.as_secs() % 60,
+                song_remaining_time / 60_000,
+                (song_remaining_time % 60_000) / 1000,
                 global_state.songs[global_state.current_song_index].title
             );
 

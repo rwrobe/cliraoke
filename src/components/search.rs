@@ -124,16 +124,7 @@ impl<'b> Search<'b> {
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
         // TODO: This should live elsewhere, so we don't create this for every keystroke.
-        let mut song = Song {
-            lyric_id: "".to_string(),
-            video_id: "".to_string(),
-            title: "".to_string(),
-            artist: "".to_string(),
-            synced_lyrics: "".to_string(),
-            lyric_map: None,
-            duration: Duration::new(0, 0),
-            message: (),
-        };
+        let mut song = Song::new();
 
         match (&self.focus, key) {
             // Component-level bindings.
@@ -271,7 +262,7 @@ impl<'b> Search<'b> {
 
                     match map {
                         Ok(lyric_map) => {
-                            song.lyric_map = Some(lyric_map);
+                            song.lyric_map = lyric_map;
                         }
                         Err(e) => {
                             println!("Error parsing lyrics: {}", e);

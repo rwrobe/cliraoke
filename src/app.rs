@@ -1,7 +1,7 @@
 use crate::audio::{AudioFetcher, AudioService};
 use crate::components::RenderableComponent;
 use crate::events::EventState;
-use crate::lyrics::LyricsFetcher;
+use crate::lyrics::{LyricsFetcher, LyricsService};
 use crate::models::song::SongList;
 pub(crate) use crate::state::GlobalState;
 use crate::state::{Focus, InputMode, SongState};
@@ -24,10 +24,11 @@ use strum::Display;
 
 pub struct AppComponent<'a> {
     lyrics_fetcher: &'a dyn LyricsFetcher,
+    lyrics_service: &'a dyn LyricsService,
     audio_fetcher: &'a dyn AudioFetcher,
     audio_service: &'a dyn AudioService,
     help: Help,
-    lyrics: Lyrics,
+    lyrics: Lyrics<'a>,
     queue: Queue,
     search: Search<'a>,
     timer: Timer,
@@ -38,6 +39,7 @@ pub struct AppComponent<'a> {
 impl<'a> AppComponent<'a> {
     pub fn new(
         lp: &'a (dyn LyricsFetcher + 'a),
+        ls: &'a (dyn LyricsService + 'a),
         ap: &'a (dyn AudioFetcher + 'a),
         aus: &'a (dyn AudioService + 'a),
     ) -> Self {
@@ -45,12 +47,13 @@ impl<'a> AppComponent<'a> {
         Self {
             // Injected services.
             lyrics_fetcher: lp,
+            lyrics_service: ls,
             audio_fetcher: ap,
             audio_service: aus,
 
             // UI Components.
             help: Help::new(),
-            lyrics: Lyrics::new(global_state.clone()),
+            lyrics: Lyrics::new(global_state.clone(), ls),
             queue: Queue::new(global_state.clone()),
             search: Search::new(global_state.clone(), lp, ap),
             timer: Timer::new(global_state.clone()),
@@ -83,6 +86,36 @@ impl<'a> AppComponent<'a> {
                 let song = Some(state.songs.remove(0));
                 state.current_song = song.clone();
                 state.current_song_index = 0;
+                state.current_song_elapsed = 0;
+                state.song_state = SongState::Playing;
+            }
+        }
+
+        // If a song is playing, update the elapsed time.
+        {
+            let mut state = self.state.lock().unwrap();
+            if state.song_state == SongState::Playing {
+                state.current_song_elapsed += tick_rate_ms;
+            }
+        }
+
+        // Update the lyrics.
+        {
+            let mut state = self.state.lock().unwrap();
+            if let Some(song) = &state.current_song {
+                if let Some(lyric_map) = &song.lyric_map {
+                    if let Ok(lyric) = self
+                        .lyrics_service
+                        .play(state.current_song_elapsed, lyric_map.clone())
+                    {
+                        // We don't want to replace the current lyric with an empty string.
+                        // TODO we should probably let the lyrics fade eventually.
+                        if lyric.is_empty() {
+                            return;
+                        }
+                        state.current_lyric = lyric;
+                    }
+                }
             }
         }
     }

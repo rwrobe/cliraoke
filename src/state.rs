@@ -31,14 +31,16 @@ pub enum SongState{
 
 #[derive(Default, PartialEq, Debug)]
 pub struct GlobalState {
+    // TODO this is too complicated
     pub(crate) song_state: SongState,
     pub(crate) current_song: Option<Song>,
     pub(crate) current_song_index: usize,
+    pub(crate) current_song_elapsed: u64,
+    pub(crate) current_lyric: String,
     pub(crate) songs: SongList,
     pub(crate) mode: InputMode,
     pub(crate) focus: Focus,
     pub(crate) session_time_elapsed: Duration,
-    pub(crate) song_time_elapsed: Duration,
 }
 
 impl GlobalState {
@@ -51,11 +53,12 @@ impl GlobalState {
             song_state: Paused,
             current_song: None,
             current_song_index: 0,
+            current_song_elapsed: 0,
+            current_lyric: String::new(),
             songs: Vec::new(),
             mode: InputMode::Nav,
             focus: Focus::Home,
             session_time_elapsed: Duration::new(0, 0),
-            song_time_elapsed: Duration::new(0, 0),
         }
     }
 }

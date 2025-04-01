@@ -44,10 +44,11 @@ async fn main() -> Result<()> {
 
   let api_key = dotenv::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
   // Create lyrics provider.
-  let lyrics = LRCLib::new();
+  let mut lyrics = LRCLib::new();
   let audio = YouTube::new(api_key);
 
   let mut app = AppComponent::new(
+    &lyrics,
     &lyrics,
     &audio,
     &audio,
