@@ -297,7 +297,6 @@ impl RenderableComponent for Search<'_> {
         &self,
         f: &mut Frame,
         rect: Rect,
-        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.query.visual_scroll(width as usize);

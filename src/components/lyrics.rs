@@ -15,7 +15,6 @@ use std::sync::{Arc, Mutex};
 use crate::lyrics::{LyricsFetcher, LyricsService};
 
 pub struct Lyrics<'a> {
-    current_lyrics: Option<String>,
     ls: &'a dyn LyricsService,
     pub global_state: Arc<Mutex<GlobalState>>,
 }
@@ -23,7 +22,6 @@ pub struct Lyrics<'a> {
 impl<'c> Lyrics<'c> {
     pub fn new(state: Arc<Mutex<GlobalState>>, ls: &'c (dyn LyricsService + 'c)) -> Self {
         Self {
-            current_lyrics: None,
             ls,
             global_state: state,
         }
@@ -35,7 +33,6 @@ impl RenderableComponent for Lyrics<'_> {
         &self,
         f: &mut Frame,
         rect: Rect,
-        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let current_song = self.global_state.lock().unwrap().current_song.clone();
         let current_lyrics = self.global_state.lock().unwrap().current_lyric.clone();

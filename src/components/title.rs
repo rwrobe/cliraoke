@@ -21,7 +21,6 @@ impl RenderableComponent for Title {
         &self,
         f: &mut Frame,
         rect: Rect,
-        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         {
             f.render_widget(

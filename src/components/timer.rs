@@ -38,9 +38,8 @@ impl RenderableComponent for Timer {
         &self,
         f: &mut Frame,
         rect: Rect,
-        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
-        let global_state = state.lock().unwrap();
+        let global_state = self.global_state.lock().unwrap();
 
         let rects = Layout::default()
             .direction(Direction::Horizontal)

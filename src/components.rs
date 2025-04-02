@@ -12,7 +12,7 @@ pub(crate) mod lyrics;
 mod stateful_list;
 
 pub trait RenderableComponent {
-  fn render<B: Backend>(&self, f: &mut Frame, rect: Rect, state: Arc<Mutex<GlobalState>>) -> Result<()>;
+  fn render<B: Backend>(&self, f: &mut Frame, rect: Rect) -> Result<()>;
 }
 
 pub trait ResettableComponent {

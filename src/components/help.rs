@@ -17,7 +17,6 @@ impl RenderableComponent for Help {
     &self,
     f: &mut Frame,
     rect: Rect,
-    state: Arc<Mutex<GlobalState>>,
   ) -> anyhow::Result<()> {
     let help_text = Line::from(vec![
       "Press ".into(),

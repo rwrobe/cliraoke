@@ -40,7 +40,6 @@ impl RenderableComponent for Queue {
         &self,
         f: &mut Frame,
         rect: Rect,
-        state: Arc<Mutex<GlobalState>>,
     ) -> anyhow::Result<()> {
         let songs = self.global_state.lock().unwrap().songs.clone();
         let block = Block::new()

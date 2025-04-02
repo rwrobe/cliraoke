@@ -243,7 +243,7 @@ impl<'a> AppComponent<'a> {
             )
             .as_str(),
         );
-        app_title.render::<B>(f, header, self.state.clone())?;
+        app_title.render::<B>(f, header)?;
 
         // The layout of the body is determined by focus.
         let focus = self.state.lock().unwrap().focus.clone();
@@ -256,24 +256,24 @@ impl<'a> AppComponent<'a> {
 
                 let (left, right) = (inner_rects[0], inner_rects[1]);
 
-                self.lyrics.render::<B>(f, left, self.state.clone())?;
-                self.queue.render::<B>(f, right, self.state.clone())?;
+                self.lyrics.render::<B>(f, left)?;
+                self.queue.render::<B>(f, right)?;
             }
             Focus::Search => {
-                self.search.render::<B>(f, body, self.state.clone())?;
+                self.search.render::<B>(f, body)?;
             }
             _ => {
-                self.lyrics.render::<B>(f, body, self.state.clone())?;
+                self.lyrics.render::<B>(f, body)?;
             }
         }
 
         // Footer.
         match focus {
             Focus::Help => {
-                self.help.render::<B>(f, footer, self.state.clone())?;
+                self.help.render::<B>(f, footer)?;
             }
             _ => {
-                self.timer.render::<B>(f, footer, self.state.clone())?;
+                self.timer.render::<B>(f, footer)?;
             }
         }
 
