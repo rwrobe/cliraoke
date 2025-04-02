@@ -1,19 +1,20 @@
-use ratatui::style::Stylize;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use block::Title;
 use super::RenderableComponent;
 use crate::app::GlobalState;
+use crate::models::song::Song;
+use block::Title;
 use color_eyre::eyre::Result;
+use ratatui::style::Stylize;
 use ratatui::widgets::block;
 use ratatui::{
+    Frame,
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     widgets::Block,
-    Frame,
 };
 use serde_json::Value::String;
-use crate::models::song::Song;
+use std::fmt::format;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
@@ -28,17 +29,13 @@ pub struct Timer {
 impl Timer {
     pub fn new(state: Arc<Mutex<GlobalState>>) -> Self {
         Self {
-            global_state: state
+            global_state: state,
         }
     }
 }
 
 impl RenderableComponent for Timer {
-    fn render<B: Backend>(
-        &self,
-        f: &mut Frame,
-        rect: Rect,
-    ) -> anyhow::Result<()> {
+    fn render<B: Backend>(&self, f: &mut Frame, rect: Rect) -> anyhow::Result<()> {
         let global_state = self.global_state.lock().unwrap();
 
         let rects = Layout::default()
@@ -48,33 +45,58 @@ impl RenderableComponent for Timer {
 
         let (left, right) = (rects[0], rects[1]);
 
-        // Song remaining time as ms.
-        let song_remaining_time = global_state.song_list.get(0)
-            .map(|song| song.duration_ms - global_state.current_song_elapsed)
-            .unwrap_or(0);
-
         let s = format!(
             "Singing for {:02}:{:02}",
             global_state.session_time_elapsed.as_secs() / 60,
             global_state.session_time_elapsed.as_secs() % 60,
         );
-        let time_singing = Block::default().title(Title::from(s.dim())).title_alignment(Alignment::Left);
+        let time_singing = Block::default()
+            .title(Title::from(s.dim()))
+            .title_alignment(Alignment::Left);
         f.render_widget(time_singing, left);
 
-        let next_song = global_state.song_list.get(0);
+        // If we have another song in the queue, show the time remaining.
+        match global_state.song_list.get(0) {
+            Some(song) => {
+                if song.duration_ms == 0 {
+                    return Ok(());
+                }
 
-        if next_song.is_some() {
-            let next_song_remaining = format!(
-                ". {:02}:{:02} until {}",
-                song_remaining_time / 60_000,
-                (song_remaining_time % 60_000) / 1000,
-                global_state.song_list.get(0).ok_or("Title Unknown").unwrap().title
-            );
+                // Song remaining time as ms.
+                let song_remaining_time = song.duration_ms - global_state.current_song_elapsed;
 
-            let time_to_next = Block::default().title(Title::from(next_song_remaining.dim())).title_alignment(Alignment::Right);
+                if song_remaining_time == 0 {
+                    return Ok(());
+                }
 
-            f.render_widget(time_to_next, right)
-        }
+                let time_remaining = format!(
+                    " {:02}:{:02}",
+                    song_remaining_time / 60_000,
+                    (song_remaining_time % 60_000) / 1000,
+                );
+
+                let next_song = format!(
+                    " until {}",
+                    global_state
+                        .song_list
+                        .get(0)
+                        .ok_or("Title Unknown")
+                        .unwrap()
+                        .title
+                );
+
+                let time_to_next = Block::default()
+                    .title(Title::from(
+                        format!("{}{}", time_remaining, next_song).dim(),
+                    ))
+                    .title_alignment(Alignment::Right);
+
+                f.render_widget(time_to_next, right);
+            }
+            _ => {}
+        };
+
+
         Ok(())
     }
 }

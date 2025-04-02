@@ -110,9 +110,15 @@ impl YouTube {
         let duration_str = &video_response.items[0].content_details.duration;
 
         // Parse as ISO 8601 duration: https://developers.google.com/youtube/v3/docs/videos/list
-        let duration = parse_duration(duration_str).unwrap_or_default();
+        let duration = duration_str.parse::<iso8601_duration::Duration>().unwrap().to_std();
 
-        Ok(duration)
+        match duration {
+            Some(duration) => Ok(duration),
+            None => {
+                println!("Failed to parse duration: {}", duration_str);
+                Err(anyhow!("Failed to parse duration"))
+            }
+        }
     }
 }
 
