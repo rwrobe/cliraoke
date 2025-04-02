@@ -50,7 +50,7 @@ impl RenderableComponent for Queue {
         f: &mut Frame,
         rect: Rect,
     ) -> anyhow::Result<()> {
-        let songs = self.global_state.lock().unwrap().songs.clone();
+        let songs = self.global_state.lock().unwrap().song_list.clone();
         let block = Block::new()
             .title(Line::from(format!(
                 " {} songs in the queue ",

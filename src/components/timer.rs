@@ -49,7 +49,7 @@ impl RenderableComponent for Timer {
         let (left, right) = (rects[0], rects[1]);
 
         // Song remaining time as ms.
-        let song_remaining_time = global_state.songs.get(global_state.current_song_index)
+        let song_remaining_time = global_state.song_list.get(0)
             .map(|song| song.duration_ms - global_state.current_song_elapsed)
             .unwrap_or(0);
 
@@ -61,14 +61,14 @@ impl RenderableComponent for Timer {
         let time_singing = Block::default().title(Title::from(s.dim())).title_alignment(Alignment::Left);
         f.render_widget(time_singing, left);
 
-        let next_song = global_state.songs.get(global_state.current_song_index + 1);
+        let next_song = global_state.song_list.get(0);
 
         if next_song.is_some() {
             let next_song_remaining = format!(
                 ". {:02}:{:02} until {}",
                 song_remaining_time / 60_000,
                 (song_remaining_time % 60_000) / 1000,
-                global_state.songs[global_state.current_song_index].title
+                global_state.song_list.get(0).ok_or("Title Unknown").unwrap().title
             );
 
             let time_to_next = Block::default().title(Title::from(next_song_remaining.dim())).title_alignment(Alignment::Right);

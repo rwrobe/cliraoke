@@ -279,12 +279,12 @@ impl<'b> Search<'b> {
                     // After selecting lyrics, push the song to the queue.
                     {
                         let mut global_state = self.global_state.lock().unwrap();
-                        global_state.songs.push(song.clone());
+                        global_state.song_list.push(song.clone());
                         global_state.mode = InputMode::Nav;
 
                         // Return to Home if we have more than one song or Queue to show that the
                         // next song was added to the queue.
-                        match global_state.songs.len() > 1 {
+                        match global_state.song_list.len() > 1 {
                             true => global_state.focus = Focus::Queue,
                             false => global_state.focus = Focus::Home,
                         }

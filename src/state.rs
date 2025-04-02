@@ -33,10 +33,9 @@ pub struct GlobalState {
     // TODO this is too complicated
     pub(crate) song_state: SongState,
     pub(crate) current_song: Option<Song>,
-    pub(crate) current_song_index: usize,
     pub(crate) current_song_elapsed: u64,
     pub(crate) current_lyric: String,
-    pub(crate) songs: SongList,
+    pub(crate) song_list: SongList,
     pub(crate) mode: InputMode,
     pub(crate) focus: Focus,
     pub(crate) session_time_elapsed: Duration,
@@ -51,10 +50,9 @@ impl GlobalState {
         Self {
             song_state: Paused,
             current_song: None,
-            current_song_index: 0,
             current_song_elapsed: 0,
             current_lyric: String::new(),
-            songs: Vec::new(),
+            song_list: Vec::new(),
             mode: InputMode::Nav,
             focus: Focus::Home,
             session_time_elapsed: Duration::new(0, 0),

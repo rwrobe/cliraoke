@@ -82,10 +82,9 @@ impl<'a> AppComponent<'a> {
         // Move the next song in the queue to the current song if nothing is playing.
         {
             let mut state = self.state.lock().unwrap();
-            if state.current_song.is_none() && !state.songs.is_empty() {
-                let song = Some(state.songs.remove(0));
+            if state.current_song.is_none() && !state.song_list.is_empty() {
+                let song = Some(state.song_list.remove(0));
                 state.current_song = song.clone();
-                state.current_song_index = 0;
                 state.current_song_elapsed = 0;
                 state.song_state = SongState::Playing;
             }
