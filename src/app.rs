@@ -20,17 +20,19 @@ use std::sync::{Arc, Mutex};
 use crate::util::{EMDASH, EMOJI_MARTINI};
 
 pub struct AppComponent<'a> {
-    lyrics_fetcher: &'a dyn LyricsFetcher,
-    lyrics_service: &'a dyn LyricsService,
     audio_fetcher: &'a dyn AudioFetcher,
     audio_service: &'a dyn AudioService,
+    lyrics_fetcher: &'a dyn LyricsFetcher,
+    lyrics_service: &'a dyn LyricsService,
+
     help: Help,
     lyrics: Lyrics<'a>,
     queue: Queue,
     search: Search<'a>,
     timer: Timer,
-    tick_accumulator: u64,
+
     state: Arc<Mutex<GlobalState>>,
+    tick_accumulator: u64,
 }
 
 impl<'a> AppComponent<'a> {
@@ -43,10 +45,10 @@ impl<'a> AppComponent<'a> {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
             // Injected services.
-            lyrics_fetcher: lp,
-            lyrics_service: ls,
             audio_fetcher: ap,
             audio_service: aus,
+            lyrics_fetcher: lp,
+            lyrics_service: ls,
 
             // UI Components.
             help: Help::new(),
@@ -56,8 +58,8 @@ impl<'a> AppComponent<'a> {
             timer: Timer::new(global_state.clone()),
 
             // State.
-            tick_accumulator: 0,
             state: global_state.clone(),
+            tick_accumulator: 0,
         }
     }
 
@@ -109,7 +111,11 @@ impl<'a> AppComponent<'a> {
                         if lyric.is_empty() {
                             return;
                         }
-                        state.current_lyric = lyric;
+
+                        // TODO
+                        let mut ret = Vec::new();
+                        ret.push(lyric);
+                        state.current_lyrics = ret;
                     }
                 }
             }

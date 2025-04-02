@@ -1,6 +1,7 @@
 use ratatui::widgets::{ListItem, ListState};
+use crate::components::ResettableComponent;
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct StatefulList<'a> {
     pub state: ListState,
     pub items: Vec<ListItem<'a>>,
@@ -45,4 +46,16 @@ impl StatefulList<'_> {
         };
         self.state.select(Some(i));
     }
+}
+
+
+impl ResettableComponent for StatefulList<'_> {
+    fn reset(&mut self) {
+        self.items.clear();
+        self.state.select(None);
+    }
+}
+
+pub fn get_list_items(listable: StatefulList) -> Vec<ListItem> {
+    listable.items.clone()
 }

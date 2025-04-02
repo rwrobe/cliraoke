@@ -12,10 +12,11 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
+use crate::state::{get_state, AMGlobalState};
 
 pub struct Lyrics<'a> {
     ls: &'a dyn LyricsService,
-    pub global_state: Arc<Mutex<GlobalState>>,
+    pub global_state: AMGlobalState,
 }
 
 impl<'c> Lyrics<'c> {
@@ -33,8 +34,9 @@ impl RenderableComponent for Lyrics<'_> {
         f: &mut Frame,
         rect: Rect,
     ) -> anyhow::Result<()> {
-        let current_song = self.global_state.lock().unwrap().current_song.clone();
-        let current_lyrics = self.global_state.lock().unwrap().current_lyric.clone();
+        let gs = get_state(&self.global_state);
+        let current_song = gs.current_song;
+        let current_lyrics = gs.current_lyrics.clone();
 
         match current_song {
             Some(song) => {
@@ -47,7 +49,7 @@ impl RenderableComponent for Lyrics<'_> {
                 f.render_widget(block, rect);
 
 
-                let line = Line::from(current_lyrics);
+                let line = Line::from_iter(current_lyrics);
 
                 let p = Paragraph::new(line)
                     .alignment(Alignment::Center)

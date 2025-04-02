@@ -17,6 +17,10 @@ impl LRCLib {
 #[async_trait]
 impl LyricsFetcher for LRCLib {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<LyricsResult>> {
+        if query.is_empty() {
+            return Ok(Vec::new())
+        }
+
         let client = Client::new(); // Create a new HTTP client
         // let mut lyrics = Vec::new(); // Initialize a vector to store videos
         let base_url = "https://lrclib.net/api/search";

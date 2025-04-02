@@ -124,6 +124,10 @@ impl YouTube {
 #[async_trait]
 impl AudioFetcher for YouTube {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>> {
+        if query.is_empty() {
+            return Ok(Vec::new())
+        }
+
         let page_token = String::new(); // Token to handle pagination
         let max_results = 5; // Maximum number of results per page
 
