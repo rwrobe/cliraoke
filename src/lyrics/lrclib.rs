@@ -109,10 +109,7 @@ impl LyricsService for LRCLib {
             let millis = elapsed_time_ms % 1000;
 
             // Return timestamp and lyric
-            return Ok(format!(
-                "[{:02}:{:02}.{:03}] {}",
-                minutes, seconds, millis, lyric
-            ));
+            return Ok(lyric.into());
         }
 
         // If no lyric found for the timestamp, return an empty string
