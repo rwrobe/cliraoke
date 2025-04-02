@@ -2,9 +2,12 @@ use crate::audio::{AudioFetcher, AudioResult, AudioService};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use reqwest::Client;
+use futures_util::StreamExt;
 use serde_json::Value;
 use std::process::Command;
 use std::time::Duration;
+use soloud::*;
+use tokio::time::sleep;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
@@ -225,49 +228,39 @@ impl AudioFetcher for YouTube {
     }
 }
 
+#[async_trait]
 impl AudioService for YouTube {
-    fn play(&self, id: &str) {
-        // Create a Command to run ffplay with silenced output
-        let mut cmd = Command::new("ffplay");
+    async fn play(&self, id: &str) -> anyhow::Result<()> {
+        let sl = Soloud::default()?;
+        // WavStream let's us stream sound to soloud.
+        let mut wav_stream = WavStream::default();
 
-        let audio_url = self.get_url(id);
+        // Get the audio URL using yt-dlp
+        let audio_url = self.get_url(id).ok_or_else(|| anyhow!("Failed to get audio URL"))?;
 
-        // Add arguments
-        cmd.args([
-            "-nodisp",
-            "-autoexit",
-            "-loglevel",
-            "quiet",
-            audio_url.unwrap().as_str(),
-        ]);
+        // Buffer the url into memory
+        let response = reqwest::get(audio_url.as_str()).await?;
+        let mut stream = response.bytes_stream();
 
-        // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
-        #[cfg(target_family = "unix")]
-        {
-            cmd.stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null());
+        // Stream buffer.
+        let mut buffer = Vec::new();
+
+        // Read the stream in chunks and append to the buffer.
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            buffer.extend_from_slice(&chunk);
+
+            // Load buffered data into WavStream
+            wav_stream.load_mem(&buffer)?;
         }
 
-        #[cfg(target_family = "windows")]
-        {
-            use std::process::Stdio;
-            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        sl.play(&wav_stream);
+
+        while sl.voice_count() > 0 {
+            sleep(Duration::from_millis(100)).await;
         }
 
-        // Run the command
-        match cmd.status() {
-            Ok(status) => {
-                if status.success() {
-                    // TODO: play next song in queue
-                    println!("Audio playback completed via ffplay");
-                } else {
-                    println!("ffplay failed with status: {}", status);
-                }
-            }
-            Err(e) => {
-                println!("Failed to run ffplay: {}", e);
-            }
-        }
+        Ok(())
     }
 
     fn pause(&self) {

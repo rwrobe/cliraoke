@@ -121,20 +121,26 @@ impl<'a> AppComponent<'a> {
     }
 
     // play will start the song and set the SongState to Playing.
-    // TODO: ffmpeg doesn't support pausing. For this we probably need soloud, which doesn't support
-    // buffering from a URL.
-    fn play(&mut self) {
+    async fn play(&mut self) {
         let mut state = get_state(&self.global_state);
         if let Some(song) = &state.current_song {
-            self.audio_service.play(song.video_id.as_str());
-
-            let audio_service = self.audio_service;
-            let video_id = song.video_id.clone();
-
-            let _play_thread = crossbeam::scope(|s| {
-                s.spawn(move |_| audio_service.play(video_id.as_str()));
-            });
-            state.song_state = SongState::Playing;
+            match self.audio_service.play(song.video_id.as_str()).await {
+                Ok(_) =>        {
+                    state.song_state = SongState::Playing;
+                    state.current_song_elapsed = 0;
+                }
+                Err(err) => {
+                    println!(
+                        "{} {} {}",
+                        "Error playing song:".red(),
+                        err.to_string().yellow(),
+                        "Skipping to next song."
+                    );
+                    state.song_state = SongState::Paused;
+                    state.current_song = None;
+                    state.current_lyrics.clear();
+                }
+            }
         }
     }
 

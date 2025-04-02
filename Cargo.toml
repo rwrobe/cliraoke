@@ -14,7 +14,7 @@ clap = { version = "4.4.5", features = ["std", "color", "help", "usage", "error-
 color-eyre = "0.6.2"
 crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
 dotenv = "0.15"
-reqwest = { version = "0.11", features = ["json", "blocking"] }
+reqwest = { version = "0.11", features = ["json", "blocking", "stream"] }
 ratatui = { version = "0.29.0", features = ["serde", "macros"] }
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
@@ -26,3 +26,5 @@ async-trait = "0.1.88"
 crossbeam = "0.8.4"
 futures = "0.3.31"
 iso8601-duration = "0.2.0"
+soloud = "1.1.0"
+futures-util = "0.3.31"

@@ -17,7 +17,8 @@ pub trait AudioFetcher {
     async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult>;
 }
 
+#[async_trait]
 pub trait AudioService: Send + Sync {
-    fn play(&self, id: &str);
+    async fn play(&self, id: &str) -> anyhow::Result<()>;
     fn pause(&self);
 }
