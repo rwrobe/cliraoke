@@ -128,7 +128,7 @@ impl<'a> AppComponent<'a> {
         if let Some(song) = &state.current_song {
             self.audio_service.play(song.video_id.as_str());
 
-            let audio_service = self.audio_service.clone();
+            let audio_service = self.audio_service;
             let video_id = song.video_id.clone();
 
             let _play_thread = crossbeam::scope(|s| {

@@ -1,9 +1,9 @@
 use super::{Frame, RenderableComponent, ResettableComponent};
 use crate::app::GlobalState;
-use crate::audio::{AudioResult, AudioFetcher};
+use crate::audio::{AudioFetcher, AudioResult};
 use crate::components::stateful_list::StatefulList;
 use crate::events::{EventState, Key};
-use crate::lyrics::{LyricsResult, LyricsFetcher};
+use crate::lyrics::{LyricsFetcher, LyricsResult};
 use crate::models::song::Song;
 use crate::state::{Focus, InputMode};
 use color_eyre::eyre::Result;
@@ -15,8 +15,8 @@ use ratatui::{
 };
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
+use tui_input::backend::crossterm::EventHandler;
 
 #[derive(Debug, Default, PartialEq)]
 enum SearchFocus {
@@ -258,7 +258,10 @@ impl<'b> Search<'b> {
                     song.title = self.lyric_results[index].title.to_string();
                     song.artist = self.lyric_results[index].artist.to_string();
                     song.synced_lyrics = self.lyric_results[index].synced_lyrics.to_string();
-                    let map = self.lyrics_service.parse(self.lyric_results[index].synced_lyrics.clone()).await;
+                    let map = self
+                        .lyrics_service
+                        .parse(self.lyric_results[index].synced_lyrics.clone())
+                        .await;
 
                     match map {
                         Ok(lyric_map) => {
@@ -274,7 +277,10 @@ impl<'b> Search<'b> {
                         let mut global_state = self.global_state.lock().unwrap();
                         global_state.songs.push(song.clone());
                         global_state.mode = InputMode::Nav;
-                        global_state.focus = Focus::Queue;
+                        match global_state.songs.len() > 1 {
+                            true => global_state.focus = Focus::Queue,
+                            false => global_state.focus = Focus::Home,
+                        }
                     }
 
                     // Clear component state.
@@ -293,11 +299,7 @@ impl<'b> Search<'b> {
 }
 
 impl RenderableComponent for Search<'_> {
-    fn render<B: Backend>(
-        &self,
-        f: &mut Frame,
-        rect: Rect,
-    ) -> anyhow::Result<()> {
+    fn render<B: Backend>(&self, f: &mut Frame, rect: Rect) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.query.visual_scroll(width as usize);
 
@@ -325,10 +327,7 @@ impl RenderableComponent for Search<'_> {
                                 .add_modifier(Modifier::BOLD)
                                 .fg(Color::LightRed),
                         ),
-                        Span::styled(
-                            format!(" to submit) {}", self.global_state.lock().unwrap().mode),
-                            Style::default().fg(Color::DarkGray),
-                        ),
+                        Span::styled(" to submit)", Style::default().fg(Color::DarkGray)),
                     ])),
             );
 

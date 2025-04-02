@@ -58,7 +58,7 @@ impl RenderableComponent for Timer {
             global_state.session_time_elapsed.as_secs() / 60,
             global_state.session_time_elapsed.as_secs() % 60,
         );
-        let time_singing = Block::default().title(Title::from(s.dim()).alignment(Alignment::Left));
+        let time_singing = Block::default().title(Title::from(s.dim())).title_alignment(Alignment::Left);
         f.render_widget(time_singing, left);
 
         let next_song = global_state.songs.get(global_state.current_song_index + 1);
@@ -71,7 +71,7 @@ impl RenderableComponent for Timer {
                 global_state.songs[global_state.current_song_index].title
             );
 
-            let time_to_next = Block::default().title(Title::from(next_song_remaining.dim()).alignment(Alignment::Right));
+            let time_to_next = Block::default().title(Title::from(next_song_remaining.dim())).title_alignment(Alignment::Right);
 
             f.render_widget(time_to_next, right)
         }

@@ -9,7 +9,7 @@ pub struct Song {
     #[serde(deserialize_with = "deserialize_u64", rename = "id")]
     pub(crate) lyric_id: String,
     pub(crate) video_id: String,
-    #[serde(rename = "artist_name")]
+    #[serde(rename = "track_name")]
     pub(crate) title: String,
     #[serde(rename = "artist_name")]
     pub(crate) artist: String,

@@ -17,6 +17,7 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
+use crate::state::Focus;
 
 #[derive(Default)]
 pub struct Queue {
@@ -31,6 +32,14 @@ impl Queue {
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
+        match key {
+            Key::Char('/') => {
+                self.global_state.lock().unwrap().focus = Focus::Search;
+                return Ok(EventState::Consumed)
+            }
+            _ => {}
+        }
+
         Ok(EventState::NotConsumed)
     }
 }
