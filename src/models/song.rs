@@ -1,8 +1,8 @@
+use crate::audio::AudioResult;
+use crate::lyrics::LyricsResult;
 use crate::util::deserialize_u64;
 use std::collections::BTreeMap;
 use std::time::Duration;
-use crate::audio::AudioResult;
-use crate::lyrics::LyricsResult;
 
 // Song is the master struct that holds information composed by both lyric and audio sources.
 #[derive(Debug, Clone, serde::Deserialize, Default, PartialEq)]
@@ -15,7 +15,7 @@ pub struct Song {
     pub(crate) title: String,
     #[serde(rename = "artist_name")]
     pub(crate) artist: String,
-    _duration: Duration,
+    duration: Duration,
     pub(crate) duration_ms: u64,
     pub(crate) synced_lyrics: String,
     pub(crate) lyric_map: Option<LyricsMap>,
@@ -31,7 +31,7 @@ impl Song {
             artist: "".to_string(),
             synced_lyrics: "".to_string(),
             lyric_map: None,
-            _duration: Duration::new(0, 0),
+            duration: Duration::new(0, 0),
             duration_ms: 0,
             message: (),
         }
@@ -45,7 +45,7 @@ impl Song {
             video_id: self.video_id.clone(),
             title: lr.title.clone(),
             artist: lr.artist.clone(),
-            _duration: self._duration.clone(),
+            duration: self.duration.clone(),
             duration_ms: self.duration_ms.clone(),
             synced_lyrics: lr.synced_lyrics.clone(),
             lyric_map: map,
@@ -59,7 +59,7 @@ impl Song {
             video_id: ar.id.clone(),
             title: self.title.clone(),
             artist: self.artist.clone(),
-            _duration: ar.duration,
+            duration: ar.duration,
             duration_ms: ar.duration.as_millis() as u64,
             synced_lyrics: self.synced_lyrics.clone(),
             lyric_map: self.lyric_map.clone(),

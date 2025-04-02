@@ -1,8 +1,6 @@
 use super::RenderableComponent;
-use crate::app::GlobalState;
 use ratatui::{prelude::*, widgets::*};
 use ratatui::{prelude::*, widgets::*};
-use std::sync::{Arc, Mutex};
 
 pub struct Help;
 

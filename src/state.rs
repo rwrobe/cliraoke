@@ -1,8 +1,7 @@
-use std::time::Duration;
-use strum::Display;
-use crate::components::timer::Timer;
 use crate::models::song::{Song, SongList};
 use crate::state::SongState::Paused;
+use std::time::Duration;
+use strum::Display;
 
 #[derive(Default, PartialEq, Display, Debug)]
 pub enum InputMode {

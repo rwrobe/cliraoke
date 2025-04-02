@@ -1,7 +1,5 @@
-use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use ratatui::{backend::Backend, layout::Rect, Frame};
-use crate::app::GlobalState;
 
 pub(crate) mod help;
 pub(crate) mod queue;

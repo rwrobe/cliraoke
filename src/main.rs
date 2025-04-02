@@ -13,18 +13,18 @@ mod state;
 mod audio;
 mod lyrics;
 
+use crate::audio::youtube::YouTube;
+use crate::lyrics::lrclib::LRCLib;
 use anyhow::Result;
 use app::AppComponent;
 use crossterm::{
   execute,
   terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use dotenv::dotenv;
 use events::{Event, Events, Key};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
-use dotenv::dotenv;
-use crate::audio::youtube::YouTube;
-use crate::lyrics::lrclib::LRCLib;
 
 // APP_TICK_RATE is the rate in ms at which the app will render. For timers, ensure it cleanly
 // divides 1000.

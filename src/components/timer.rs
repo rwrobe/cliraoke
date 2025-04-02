@@ -1,8 +1,6 @@
 use super::RenderableComponent;
 use crate::app::GlobalState;
-use crate::models::song::Song;
 use block::Title;
-use color_eyre::eyre::Result;
 use ratatui::style::Stylize;
 use ratatui::widgets::block;
 use ratatui::{
@@ -11,10 +9,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     widgets::Block,
 };
-use serde_json::Value::String;
-use std::fmt::format;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
@@ -95,7 +90,6 @@ impl RenderableComponent for Timer {
             }
             _ => {}
         };
-
 
         Ok(())
     }

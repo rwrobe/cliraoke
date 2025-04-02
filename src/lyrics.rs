@@ -1,8 +1,5 @@
 use crate::util::deserialize_u64;
 use async_trait::async_trait;
-use tokio::time::Instant;
-use crate::audio::AudioResult;
-use crate::models::song::Song;
 
 pub(crate) mod lrclib;
 

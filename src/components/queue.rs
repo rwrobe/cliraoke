@@ -1,7 +1,7 @@
 use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::events::{EventState, Key};
-use crate::models::song::{Song, SongList};
+use crate::state::Focus;
 use color_eyre::eyre::Result;
 use ratatui::backend::Backend;
 use ratatui::layout::Alignment;
@@ -17,7 +17,6 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
-use crate::state::Focus;
 
 #[derive(Default)]
 pub struct Queue {

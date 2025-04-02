@@ -1,14 +1,10 @@
-use crate::lyrics::{Lyric, LyricResponse, LyricsFetcher, LyricsResult, LyricsService};
-use crate::models::song::{LyricsMap, Song};
+use crate::lyrics::{LyricResponse, LyricsFetcher, LyricsResult, LyricsService};
+use crate::models::song::LyricsMap;
 use async_trait::async_trait;
-use clap::builder::Str;
 use regex::Regex;
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde_json::Value;
-use std::os::unix::raw::time_t;
 use std::thread;
-use std::time::{Duration, Instant};
-use thread::sleep;
 
 pub struct LRCLib;
 

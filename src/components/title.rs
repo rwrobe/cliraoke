@@ -1,7 +1,5 @@
 use super::RenderableComponent;
-use crate::app::GlobalState;
 use ratatui::{prelude::*, widgets::*};
-use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 pub struct Title {

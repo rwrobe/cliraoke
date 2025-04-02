@@ -14,9 +14,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
 #[derive(Debug, Default, PartialEq)]
 enum SearchFocus {
@@ -44,6 +43,7 @@ pub struct Search<'a> {
     lyrics_service: &'a dyn LyricsFetcher,
     lyrics_state: ListState,
 
+    song: Song,
     focus: SearchFocus,
     global_state: Arc<Mutex<GlobalState>>,
     query: Input,
@@ -66,6 +66,7 @@ impl<'b> Search<'b> {
             lyrics_service: lp,
             lyrics_state: ListState::default(),
 
+            song: Song::new(),
             focus: SearchFocus::Input,
             global_state: state,
             query: Input::default(),
@@ -129,12 +130,10 @@ impl<'b> Search<'b> {
         self.audio_results.clear();
         self.lyric_results.clear();
         self.focus = SearchFocus::Input;
+        self.song = Song::new();
     }
 
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
-        // TODO: This should live elsewhere, so we don't create this for every keystroke.
-        let mut song = Song::new();
-
         match (&self.focus, key) {
             // Component-level bindings.
             (SearchFocus::Input | SearchFocus::Audio | SearchFocus::Lyrics, Key::Tab) => {
@@ -232,7 +231,7 @@ impl<'b> Search<'b> {
             }
             (SearchFocus::Audio, Key::Enter) => {
                 if let Some(index) = self.audio_state.selected() {
-                    song.with_ar(self.audio_results[index].clone());
+                    self.song = self.song.with_ar(self.audio_results[index].clone());
                 }
 
                 self.focus = SearchFocus::Lyrics;
@@ -264,7 +263,7 @@ impl<'b> Search<'b> {
             (SearchFocus::Lyrics, Key::Enter) => {
                 if let Some(index) = self.lyrics_state.selected() {
                     let this_lr = self.lyric_results[index].clone();
-                    song = song.with_lr(
+                    self.song = self.song.with_lr(
                         this_lr.clone(),
                         self.lyrics_service
                             .parse(this_lr.synced_lyrics.to_owned())
@@ -279,7 +278,7 @@ impl<'b> Search<'b> {
                     // After selecting lyrics, push the song to the queue.
                     {
                         let mut global_state = self.global_state.lock().unwrap();
-                        global_state.song_list.push(song.clone());
+                        global_state.song_list.push(self.song.clone());
                         global_state.mode = InputMode::Nav;
 
                         // Return to Home if we have more than one song or Queue to show that the

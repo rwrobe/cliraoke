@@ -1,6 +1,6 @@
 use crate::app::GlobalState;
 use crate::components::RenderableComponent;
-use crate::models::song::Song;
+use crate::lyrics::LyricsService;
 use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Margin};
 use ratatui::widgets::{BorderType, Paragraph, Wrap};
@@ -12,7 +12,6 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
-use crate::lyrics::{LyricsFetcher, LyricsService};
 
 pub struct Lyrics<'a> {
     ls: &'a dyn LyricsService,

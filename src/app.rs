@@ -2,7 +2,6 @@ use crate::audio::{AudioFetcher, AudioService};
 use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::lyrics::{LyricsFetcher, LyricsService};
-use crate::models::song::SongList;
 pub(crate) use crate::state::GlobalState;
 use crate::state::{Focus, InputMode, SongState};
 use crate::{
@@ -11,16 +10,13 @@ use crate::{
     },
     events::Key,
 };
-use color_eyre::eyre::Result;
 use crossbeam;
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     Frame,
 };
-use std::cmp::PartialEq;
 use std::sync::{Arc, Mutex};
-use strum::Display;
 
 pub struct AppComponent<'a> {
     lyrics_fetcher: &'a dyn LyricsFetcher,

@@ -5,7 +5,6 @@ use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
 use std::time::Duration;
-use humantime::parse_duration;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
