@@ -70,19 +70,16 @@ impl RenderableComponent for Timer {
                     (song_remaining_time % 60_000) / 1000,
                 );
 
-                let next_song = format!(
-                    " until {}",
-                    global_state
-                        .song_list
-                        .get(0)
-                        .ok_or("Title Unknown")
-                        .unwrap()
-                        .title
+                let next_song = global_state.song_list.get(0).unwrap();
+                let song_remaining = format!(
+                    " until {} by {}",
+                    next_song.title,
+                    next_song.artist,
                 );
 
                 let time_to_next = Block::default()
                     .title(Title::from(
-                        format!("{}{}", time_remaining, next_song).dim(),
+                        format!("{}{}", time_remaining, song_remaining).dim(),
                     ))
                     .title_alignment(Alignment::Right);
 

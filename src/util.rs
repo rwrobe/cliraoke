@@ -8,3 +8,6 @@ where
     let s = Number::deserialize(deserializer)?;
     Ok(s.to_string())
 }
+
+pub const EMOJI_MARTINI: char = '\u{1F378}';
+pub const EMDASH: char = '\u{2014}';

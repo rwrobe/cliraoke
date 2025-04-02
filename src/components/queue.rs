@@ -17,6 +17,7 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
+use crate::util::EMDASH;
 
 #[derive(Default)]
 pub struct Queue {
@@ -63,7 +64,7 @@ impl RenderableComponent for Queue {
         let items: Vec<ListItem> = songs
             .iter()
             .enumerate()
-            .map(|(i, song)| ListItem::new(song.title.clone()).bg(Black))
+            .map(|(i, song)| ListItem::new(format!("{} {} {}", song.title.clone(), EMDASH, song.artist.clone())).bg(Black))
             .collect();
 
         // Create a List from all list items and highlight the currently selected one

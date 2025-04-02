@@ -17,6 +17,7 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
+use crate::util::{EMDASH, EMOJI_MARTINI};
 
 pub struct AppComponent<'a> {
     lyrics_fetcher: &'a dyn LyricsFetcher,
@@ -212,10 +213,6 @@ impl<'a> AppComponent<'a> {
             .split(rect);
 
         let (header, body, footer) = (chunks[0], chunks[1], chunks[2]);
-
-        // Header
-        const EMOJI_MARTINI: char = '\u{1F378}';
-        const EMDASH: char = '\u{2014}';
 
         let app_title = Title::new(
             format!(
