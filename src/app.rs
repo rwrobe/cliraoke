@@ -3,7 +3,8 @@ use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::lyrics::{LyricsFetcher, LyricsService};
 pub(crate) use crate::state::GlobalState;
-use crate::state::{Focus, InputMode, SongState};
+use crate::state::{Focus, InputMode, SongState, get_state, with_state};
+use crate::util::{EMDASH, EMOJI_MARTINI};
 use crate::{
     components::{
         help::Help, lyrics::Lyrics, queue::Queue, search::Search, timer::Timer, title::Title,
@@ -12,12 +13,12 @@ use crate::{
 };
 use crossbeam;
 use ratatui::{
+    Frame,
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
-    Frame,
 };
 use std::sync::{Arc, Mutex};
-use crate::util::{EMDASH, EMOJI_MARTINI};
+use color_eyre::owo_colors::OwoColorize;
 
 pub struct AppComponent<'a> {
     audio_fetcher: &'a dyn AudioFetcher,
@@ -31,7 +32,7 @@ pub struct AppComponent<'a> {
     search: Search<'a>,
     timer: Timer,
 
-    state: Arc<Mutex<GlobalState>>,
+    global_state: Arc<Mutex<GlobalState>>,
     tick_accumulator: u64,
 }
 
@@ -58,7 +59,7 @@ impl<'a> AppComponent<'a> {
             timer: Timer::new(global_state.clone()),
 
             // State.
-            state: global_state.clone(),
+            global_state: global_state.clone(),
             tick_accumulator: 0,
         }
     }
@@ -73,38 +74,35 @@ impl<'a> AppComponent<'a> {
         // Use other values to dilate time.
         if self.tick_accumulator >= 1000 {
             let seconds = self.tick_accumulator / 1000;
-            self.state.lock().unwrap().session_time_elapsed +=
-                std::time::Duration::from_secs(seconds);
+
+            with_state(&self.global_state, |s| {
+                s.session_time_elapsed += std::time::Duration::from_secs(seconds);
+            });
+
             self.tick_accumulator %= 1000;
         }
 
-        // Move the next song in the queue to the current song if nothing is playing.
-        {
-            let mut state = self.state.lock().unwrap();
-            if state.current_song.is_none() && !state.song_list.is_empty() {
-                let song = Some(state.song_list.remove(0));
-                state.current_song = song.clone();
-                state.current_song_elapsed = 0;
-                state.song_state = SongState::Playing;
+        // Update global state.
+        with_state(&self.global_state, |s| {
+            // Move the next song in the queue to the current song if nothing is playing.
+            if s.current_song.is_none() && !s.song_list.is_empty() {
+                let song = Some(s.song_list.remove(0));
+                s.current_song = song.clone();
+                s.current_song_elapsed = 0;
+                s.song_state = SongState::Playing;
             }
-        }
 
-        // If a song is playing, update the elapsed time.
-        {
-            let mut state = self.state.lock().unwrap();
-            if state.song_state == SongState::Playing {
-                state.current_song_elapsed += tick_rate_ms;
+            // If a song is playing, update the elapsed time.
+            if s.song_state == SongState::Playing {
+                s.current_song_elapsed += tick_rate_ms;
             }
-        }
 
-        // Update the lyrics.
-        {
-            let mut state = self.state.lock().unwrap();
-            if let Some(song) = &state.current_song {
+            // Update the lyrics.
+            if let Some(song) = &s.current_song {
                 if let Some(lyric_map) = &song.lyric_map {
                     if let Ok(lyric) = self
                         .lyrics_service
-                        .play(state.current_song_elapsed, lyric_map.clone())
+                        .play(s.current_song_elapsed, lyric_map.clone())
                     {
                         // We don't want to replace the current lyric with an empty string.
                         // TODO we should probably let the lyrics fade eventually.
@@ -115,18 +113,18 @@ impl<'a> AppComponent<'a> {
                         // TODO
                         let mut ret = Vec::new();
                         ret.push(lyric);
-                        state.current_lyrics = ret;
+                        s.current_lyrics = ret;
                     }
                 }
             }
-        }
+        });
     }
 
     // play will start the song and set the SongState to Playing.
     // TODO: ffmpeg doesn't support pausing. For this we probably need soloud, which doesn't support
     // buffering from a URL.
     fn play(&mut self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = get_state(&self.global_state);
         if let Some(song) = &state.current_song {
             self.audio_service.play(song.video_id.as_str());
 
@@ -146,7 +144,7 @@ impl<'a> AppComponent<'a> {
     // are given priority in handling events, so the event bubbles up the component hierarchy like
     // JS events in the DOM.
     pub async fn event(&mut self, key: Key) -> anyhow::Result<EventState> {
-        let focus = self.state.lock().unwrap().focus.clone();
+        let focus = self.global_state.lock().unwrap().focus.clone();
 
         match focus {
             Focus::Queue => {
@@ -156,12 +154,15 @@ impl<'a> AppComponent<'a> {
 
                 match key {
                     Key::Char('u') => {
-                        self.state.lock().unwrap().focus = Focus::Home;
+                        with_state(&self.global_state, |s| {
+                            s.focus = Focus::Home;
+                        });
                     }
                     Key::Char('/') => {
-                        let mut state = self.state.lock().unwrap();
-                        state.mode = InputMode::Input;
-                        state.focus = Focus::Search;
+                        with_state(&self.global_state, |s| {
+                            s.focus = Focus::Search;
+                            s.mode = InputMode::Input;
+                        });
                     }
                     _ => {}
                 }
@@ -173,31 +174,42 @@ impl<'a> AppComponent<'a> {
 
                 match key {
                     Key::Char('/') | Key::Esc => {
-                        self.state.lock().unwrap().focus = Focus::Home;
+                        with_state(&self.global_state, |s| {
+                            s.focus = Focus::Home;
+                        });
                     }
                     _ => {}
                 }
             }
             Focus::Help => match key {
                 Key::Esc | Key::Char('h') => {
-                    self.state.lock().unwrap().focus = Focus::Home;
+                    with_state(&self.global_state, |s| {
+                        s.focus = Focus::Home;
+                    });
                 }
                 _ => {}
             },
             _ => match key {
                 Key::Esc => {
-                    self.state.lock().unwrap().focus = Focus::Home;
+                    with_state(&self.global_state, |s| {
+                        s.focus = Focus::Home;
+                    });
                 }
                 Key::Char('h') => {
-                    self.state.lock().unwrap().focus = Focus::Help;
+                    with_state(&self.global_state, |s| {
+                        s.focus = Focus::Help;
+                    });
                 }
                 Key::Char('u') => {
-                    self.state.lock().unwrap().focus = Focus::Queue;
+                    with_state(&self.global_state, |s| {
+                        s.focus = Focus::Queue;
+                    });
                 }
                 Key::Char('/') => {
-                    let mut state = self.state.lock().unwrap();
-                    state.mode = InputMode::Input;
-                    state.focus = Focus::Search;
+                    with_state(&self.global_state, |s| {
+                        s.focus = Focus::Search;
+                        s.mode = InputMode::Input;
+                    });
                 }
                 _ => {}
             },
@@ -230,7 +242,7 @@ impl<'a> AppComponent<'a> {
         app_title.render::<B>(f, header)?;
 
         // The layout of the body is determined by focus.
-        let focus = self.state.lock().unwrap().focus.clone();
+        let focus = get_state(&self.global_state).focus.clone();
         match focus {
             Focus::Queue => {
                 let inner_rects = Layout::default()

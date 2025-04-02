@@ -1,7 +1,7 @@
 use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::events::{EventState, Key};
-use crate::state::Focus;
+use crate::state::{get_state, with_state, Focus};
 use color_eyre::eyre::Result;
 use ratatui::backend::Backend;
 use ratatui::layout::Alignment;
@@ -34,7 +34,10 @@ impl Queue {
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
         match key {
             Key::Char('/') => {
-                self.global_state.lock().unwrap().focus = Focus::Search;
+                with_state(&self.global_state, |s| {
+                    s.focus = Focus::Search;
+                });
+
                 return Ok(EventState::Consumed)
             }
             _ => {}
@@ -50,7 +53,7 @@ impl RenderableComponent for Queue {
         f: &mut Frame,
         rect: Rect,
     ) -> anyhow::Result<()> {
-        let songs = self.global_state.lock().unwrap().song_list.clone();
+        let songs = get_state(&self.global_state).song_list.clone();
         let block = Block::new()
             .title(Line::from(format!(
                 " {} songs in the queue ",
@@ -64,7 +67,7 @@ impl RenderableComponent for Queue {
         let items: Vec<ListItem> = songs
             .iter()
             .enumerate()
-            .map(|(i, song)| ListItem::new(format!("{} {} {}", song.title.clone(), EMDASH, song.artist.clone())).bg(Black))
+            .map(|(i, song)| ListItem::new(format!("{} {} {}", song.title, EMDASH, song.artist)).bg(Black))
             .collect();
 
         // Create a List from all list items and highlight the currently selected one

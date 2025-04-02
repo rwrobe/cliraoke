@@ -65,6 +65,8 @@ pub type AMGlobalState = Arc<Mutex<GlobalState>>;
 
 // -- Helper functions for working with global state.
 
+// NB: For now, global state is small enough I feel like we can clone it when we need access to its
+// members.
 pub fn get_state(state: &AMGlobalState) -> GlobalState {
     let guard = state.lock().unwrap();
     guard.clone()

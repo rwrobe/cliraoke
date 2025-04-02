@@ -10,6 +10,7 @@ use ratatui::{
     widgets::Block,
 };
 use std::sync::{Arc, Mutex};
+use crate::state::get_state;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {
@@ -31,7 +32,7 @@ impl Timer {
 
 impl RenderableComponent for Timer {
     fn render<B: Backend>(&self, f: &mut Frame, rect: Rect) -> anyhow::Result<()> {
-        let global_state = self.global_state.lock().unwrap();
+        let global_state = get_state(&self.global_state);
 
         let rects = Layout::default()
             .direction(Direction::Horizontal)
