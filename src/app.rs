@@ -182,20 +182,6 @@ impl<'a> AppComponent<'a> {
                 }
                 _ => {}
             },
-            Focus::Lyrics => match key {
-                Key::Char(' ') => {
-                    {
-                        let mut state = self.state.lock().unwrap();
-                        if state.song_state == SongState::Playing {
-                            // TODO: pause with ffmpeg
-                        } else {
-                            state.song_state = SongState::Playing;
-                        }
-                    }
-                    self.play();
-                }
-                _ => {}
-            },
             _ => match key {
                 Key::Esc => {
                     self.state.lock().unwrap().focus = Focus::Home;

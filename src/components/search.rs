@@ -122,6 +122,15 @@ impl<'b> Search<'b> {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.audio_presentation_list.reset();
+        self.lyrics_presentation_list.reset();
+        self.query.reset();
+        self.audio_results.clear();
+        self.lyric_results.clear();
+        self.focus = SearchFocus::Input;
+    }
+
     pub async fn event(&mut self, key: Key) -> Result<EventState> {
         // TODO: This should live elsewhere, so we don't create this for every keystroke.
         let mut song = Song::new();
@@ -223,7 +232,7 @@ impl<'b> Search<'b> {
             }
             (SearchFocus::Audio, Key::Enter) => {
                 if let Some(index) = self.audio_state.selected() {
-                    song.video_id = self.audio_results[index].id.to_string();
+                    song.with_ar(self.audio_results[index].clone());
                 }
 
                 self.focus = SearchFocus::Lyrics;
@@ -254,29 +263,27 @@ impl<'b> Search<'b> {
             }
             (SearchFocus::Lyrics, Key::Enter) => {
                 if let Some(index) = self.lyrics_state.selected() {
-                    song.lyric_id = self.lyric_results[index].id.to_string();
-                    song.title = self.lyric_results[index].title.to_string();
-                    song.artist = self.lyric_results[index].artist.to_string();
-                    song.synced_lyrics = self.lyric_results[index].synced_lyrics.to_string();
-                    let map = self
-                        .lyrics_service
-                        .parse(self.lyric_results[index].synced_lyrics.clone())
-                        .await;
+                    let this_lr = self.lyric_results[index].clone();
+                    song = song.with_lr(
+                        this_lr.clone(),
+                        self.lyrics_service
+                            .parse(this_lr.synced_lyrics.to_owned())
+                            .await
+                            .unwrap_or_else(|e| {
+                                println!("Error parsing lyrics: {}", e);
+                                // Return an empty result instead of panicking
+                                None
+                            }),
+                    );
 
-                    match map {
-                        Ok(lyric_map) => {
-                            song.lyric_map = lyric_map;
-                        }
-                        Err(e) => {
-                            println!("Error parsing lyrics: {}", e);
-                        }
-                    }
-
-                    // After selecting lyrics, push the song to the queue and return to Queue view.
+                    // After selecting lyrics, push the song to the queue.
                     {
                         let mut global_state = self.global_state.lock().unwrap();
                         global_state.songs.push(song.clone());
                         global_state.mode = InputMode::Nav;
+
+                        // Return to Home if we have more than one song or Queue to show that the
+                        // next song was added to the queue.
                         match global_state.songs.len() > 1 {
                             true => global_state.focus = Focus::Queue,
                             false => global_state.focus = Focus::Home,
@@ -284,9 +291,7 @@ impl<'b> Search<'b> {
                     }
 
                     // Clear component state.
-                    self.query.reset();
-                    self.audio_presentation_list.reset();
-                    self.lyrics_presentation_list.reset();
+                    self.reset();
                 }
 
                 return Ok(EventState::Consumed);

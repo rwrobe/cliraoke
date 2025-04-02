@@ -1,19 +1,25 @@
-use crate::audio::{AudioService, AudioResult, AudioFetcher};
+use crate::audio::{AudioFetcher, AudioResult, AudioService};
 use anyhow::anyhow;
+use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
-use async_trait::async_trait;
+use std::time::Duration;
+use humantime::parse_duration;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
 pub struct YouTube {
     pub api_key: String,
+    pub http_ct: Client,
 }
 
 impl YouTube {
     pub(crate) fn new(api_key: String) -> Self {
-        YouTube { api_key }
+        YouTube {
+            api_key,
+            http_ct: Client::new(),
+        }
     }
 
     fn get_url(&self, id: &str) -> Option<String> {
@@ -61,12 +67,58 @@ impl YouTube {
             }
         }
     }
+
+    async fn get_duration(&self, id: String) -> anyhow::Result<Duration> {
+        // Build the API request URL
+        let url = format!(
+            "https://www.googleapis.com/youtube/v3/videos?key={}&id={}&part=contentDetails",
+            self.api_key, id,
+        );
+
+        let res = self.http_ct
+            .get(&url)
+            .header("Referer", "cliraoke") // Add referer header
+            .send()
+            .await?;
+
+        // Check if the response was successful
+        if !res.status().is_success() {
+            println!("API request failed with status: {}", res.status());
+            println!("Response body: {}", res.text().await?);
+            return Err(anyhow!("API request failed"));
+        }
+
+        let json: Value = res.json().await?;
+
+        #[derive(Debug, serde::Deserialize)]
+        struct YTVideoResponse {
+            items: Vec<YTVideoItem>,
+        }
+
+        #[derive(Debug, serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct YTVideoItem {
+            content_details: YTContentDetails,
+        }
+
+        #[derive(Debug, serde::Deserialize)]
+        struct YTContentDetails {
+            duration: String,
+        }
+
+        let video_response = serde_json::from_value::<YTVideoResponse>(json)?;
+        let duration_str = &video_response.items[0].content_details.duration;
+
+        // Parse as ISO 8601 duration: https://developers.google.com/youtube/v3/docs/videos/list
+        let duration = parse_duration(duration_str).unwrap_or_default();
+
+        Ok(duration)
+    }
 }
 
 #[async_trait]
 impl AudioFetcher for YouTube {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>> {
-        let client = Client::new(); // Create a new HTTP client
         let page_token = String::new(); // Token to handle pagination
         let max_results = 5; // Maximum number of results per page
 
@@ -79,7 +131,7 @@ impl AudioFetcher for YouTube {
             page_token
         );
 
-        let response = client
+        let response = self.http_ct
             .get(&url)
             .header("Referer", "cliraoke") // Add referer header
             .send()
@@ -116,25 +168,50 @@ impl AudioFetcher for YouTube {
         }
 
         let json_response = serde_json::from_value::<YoutubeResponse>(json)?;
-        let audios: Vec<_> = json_response
+        let futures: Vec<_> = json_response
             .items
             .iter()
-            .map(|item| AudioResult {
-                id: item.id.video_id.to_owned(),
-                title: item.snippet.title.to_owned(),
-                artist: item.snippet.channel_title.to_owned(),
+            .map(|item| {
+                let video_id = item.id.video_id.to_owned();
+                let title = item.snippet.title.to_owned();
+                let artist = item.snippet.channel_title.to_owned();
+
+                async move {
+                    let mut res = AudioResult {
+                        id: video_id.clone(),
+                        title,
+                        artist,
+                        duration: Duration::new(0, 0), // Placeholder for duration
+                    };
+
+                    let d = self.get_duration(video_id).await;
+                    match d {
+                        Ok(duration) => {
+                            res.duration = duration;
+                        }
+                        Err(e) => {
+                            println!("Failed to get duration: {}", e);
+                            res.duration = Duration::new(0, 0); // Default value
+                        }
+                    }
+
+                    res
+                }
             })
             .collect();
+
+        let audios = futures::future::join_all(futures).await;
 
         Ok(audios)
     }
 
     // TODO: This method is only necessary if we need to download the file, e.g., for soloud.
-    async fn fetch(& self, id: &str) -> anyhow::Result<AudioResult> {
-        Ok(AudioResult{
+    async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult> {
+        Ok(AudioResult {
             id: id.to_string(),
             title: "Dummy Title".to_string(),
             artist: "Dummy Artist".to_string(),
+            duration: Duration::new(0, 0),
         })
     }
 }
@@ -147,7 +224,13 @@ impl AudioService for YouTube {
         let audio_url = self.get_url(id);
 
         // Add arguments
-        cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", audio_url.unwrap().as_str()]);
+        cmd.args([
+            "-nodisp",
+            "-autoexit",
+            "-loglevel",
+            "quiet",
+            audio_url.unwrap().as_str(),
+        ]);
 
         // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
         #[cfg(target_family = "unix")]

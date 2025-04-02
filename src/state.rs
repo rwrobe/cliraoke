@@ -16,7 +16,6 @@ pub enum Focus {
     Help,
     #[default]
     Home,
-    Lyrics,
     Queue,
     Search,
     Timer,

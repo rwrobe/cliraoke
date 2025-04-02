@@ -1,3 +1,4 @@
+use std::time::Duration;
 use async_trait::async_trait;
 
 pub(crate) mod youtube;
@@ -7,6 +8,7 @@ pub struct AudioResult {
     pub id: String,
     pub title: String,
     pub artist: String,
+    pub duration: Duration,
 }
 
 #[async_trait]
