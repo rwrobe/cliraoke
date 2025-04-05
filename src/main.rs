@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
         Err(_) => unimplemented!(),
       },
 
-      Event::Tick => app.tick(APP_TICK_RATE)
+      Event::Tick => app.tick(APP_TICK_RATE).await
     }
   }
 

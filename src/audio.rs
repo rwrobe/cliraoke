@@ -1,7 +1,9 @@
+use std::error::Error;
 use async_trait::async_trait;
 use std::time::Duration;
 
 pub(crate) mod youtube;
+mod platform;
 
 #[derive(Debug, Clone)]
 pub struct AudioResult {
@@ -19,6 +21,6 @@ pub trait AudioFetcher {
 
 #[async_trait]
 pub trait AudioService: Send + Sync {
-    async fn play(&self, id: &str) -> anyhow::Result<()>;
+    async fn play(&self, id: &str) -> Result<(), Box<dyn Error + Send + Sync>>;
     fn pause(&self);
 }

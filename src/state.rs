@@ -73,7 +73,7 @@ pub fn get_state(state: &AMGlobalState) -> GlobalState {
 }
 
 pub fn get_guarded_state(state: &AMGlobalState) -> MutexGuard<GlobalState> {
-    state.lock().unwrap()
+    state.lock().expect("Failed to lock global state")
 }
 
 // With closure that will be called with a mutable reference to the global state.
@@ -81,6 +81,16 @@ pub fn with_state<F, R>(state: &AMGlobalState, f: F) -> R
 where
     F: FnOnce(&mut GlobalState) -> R,
 {
-    let mut guard = state.lock().unwrap();
+    let mut guard = state.lock().expect("Lyrics ain't shit but chars and tics");
     f(&mut guard)
+}
+
+// When we need to send an async lambda to change the state.
+pub async fn with_async_state<F, Fut, R>(state: &AMGlobalState, f: F) -> R
+where
+    F: FnOnce(&mut GlobalState) -> Fut,
+    Fut: Future<Output = R>,
+{
+    let mut guard = state.lock().expect("Gangsta rap made me do it");
+    f(&mut guard).await
 }

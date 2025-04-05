@@ -1,9 +1,11 @@
+use crate::audio;
 use crate::audio::{AudioFetcher, AudioService};
 use crate::components::RenderableComponent;
 use crate::events::EventState;
+use crate::lyrics;
 use crate::lyrics::{LyricsFetcher, LyricsService};
 pub(crate) use crate::state::GlobalState;
-use crate::state::{Focus, InputMode, SongState, get_state, with_state};
+use crate::state::{Focus, InputMode, SongState, get_state, with_async_state, with_state};
 use crate::util::{EMDASH, EMOJI_MARTINI};
 use crate::{
     components::{
@@ -11,6 +13,7 @@ use crate::{
     },
     events::Key,
 };
+use color_eyre::owo_colors::OwoColorize;
 use crossbeam;
 use ratatui::{
     Frame,
@@ -18,13 +21,18 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
 };
 use std::sync::{Arc, Mutex};
-use color_eyre::owo_colors::OwoColorize;
 
-pub struct AppComponent<'a> {
-    audio_fetcher: &'a dyn AudioFetcher,
-    audio_service: &'a dyn AudioService,
-    lyrics_fetcher: &'a dyn LyricsFetcher,
-    lyrics_service: &'a dyn LyricsService,
+pub struct AppComponent<'a, AF, AS, LF, LS>
+where
+    AF: AudioFetcher + 'a,
+    AS: AudioService + 'a,
+    LF: LyricsFetcher + 'a,
+    LS: LyricsService + 'a,
+{
+    audio_fetcher: &'a AF,
+    audio_service: &'a AS,
+    lyrics_fetcher: &'a LF,
+    lyrics_service: &'a LS,
 
     help: Help,
     lyrics: Lyrics<'a>,
@@ -36,13 +44,15 @@ pub struct AppComponent<'a> {
     tick_accumulator: u64,
 }
 
-impl<'a> AppComponent<'a> {
-    pub fn new(
-        lp: &'a (dyn LyricsFetcher + 'a),
-        ls: &'a (dyn LyricsService + 'a),
-        ap: &'a (dyn AudioFetcher + 'a),
-        aus: &'a (dyn AudioService + 'a),
-    ) -> Self {
+impl<
+    'a,
+    AF: AudioFetcher,
+    AS: AudioService,
+    LF: LyricsFetcher,
+    LS: LyricsService,
+> AppComponent<'a, AF, AS, LF, LS>
+{
+    pub fn new(lp: &'a LF, ls: &'a LS, ap: &'a AF, aus: &'a AS) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
             // Injected services.
@@ -65,7 +75,7 @@ impl<'a> AppComponent<'a> {
     }
 
     // tick is called every second
-    pub(crate) fn tick(&mut self, tick_rate_ms: u64) {
+    pub(crate) async fn tick(&mut self, tick_rate_ms: u64) {
         // Our "tick" rate (refresh rate) is defined in ms.
         self.tick_accumulator += tick_rate_ms;
 
@@ -83,63 +93,52 @@ impl<'a> AppComponent<'a> {
         }
 
         // Update global state.
-        with_state(&self.global_state, |s| {
-            // Move the next song in the queue to the current song if nothing is playing.
-            if s.current_song.is_none() && !s.song_list.is_empty() {
-                let song = Some(s.song_list.remove(0));
-                s.current_song = song.clone();
-                s.current_song_elapsed = 0;
-                s.song_state = SongState::Playing;
-            }
-
-            // If a song is playing, update the elapsed time.
+        let _ = with_state(&self.global_state.clone(), |s| {
+            // If a song is playing, update the elapsed time and start lyrics.
             if s.song_state == SongState::Playing {
                 s.current_song_elapsed += tick_rate_ms;
-            }
 
-            // Update the lyrics.
-            if let Some(song) = &s.current_song {
-                if let Some(lyric_map) = &song.lyric_map {
-                    if let Ok(lyric) = self
-                        .lyrics_service
-                        .play(s.current_song_elapsed, lyric_map.clone())
-                    {
-                        // We don't want to replace the current lyric with an empty string.
-                        // TODO we should probably let the lyrics fade eventually.
-                        if lyric.is_empty() {
-                            return;
+                // Update the lyrics.
+                if let Some(song) = &s.current_song {
+                    if let Some(lyric_map) = &song.lyric_map {
+                        if let Ok(lyric) = self
+                            .lyrics_service
+                            .play(s.current_song_elapsed, lyric_map.clone())
+                        {
+                            // We don't want to replace the current lyric with an empty string.
+                            // TODO we should probably let the lyrics fade eventually.
+                            if lyric.is_empty() {
+                                return;
+                            }
+
+                            // TODO
+                            let mut ret = Vec::new();
+                            ret.push(lyric);
+                            s.current_lyrics = ret;
                         }
-
-                        // TODO
-                        let mut ret = Vec::new();
-                        ret.push(lyric);
-                        s.current_lyrics = ret;
                     }
                 }
             }
         });
     }
 
-    // play will start the song and set the SongState to Playing.
-    async fn play(&mut self) {
+    async fn play(&self) {
         let mut state = get_state(&self.global_state);
-        if let Some(song) = &state.current_song {
-            match self.audio_service.play(song.video_id.as_str()).await {
-                Ok(_) =>        {
-                    state.song_state = SongState::Playing;
-                    state.current_song_elapsed = 0;
+        // Move the next song in the queue to the current song if nothing is playing.
+        if state.current_song.is_none() && !state.song_list.is_empty() {
+            let song = Some(state.song_list.remove(0));
+            state.current_song = song.clone();
+            state.current_song_elapsed = 0;
+            state.song_state = SongState::Playing;
+
+            match song {
+                Some(cs) => {
+                    self.audio_service
+                        .play(cs.video_id.as_str())
+                        .await
+                        .expect("dawg shit");
                 }
-                Err(err) => {
-                    println!(
-                        "{} {} {}",
-                        "Error playing song:".red(),
-                        err.to_string().yellow(),
-                        "Skipping to next song."
-                    );
-                    state.song_state = SongState::Paused;
-                    state.current_song = None;
-                    state.current_lyrics.clear();
-                }
+                None => {}
             }
         }
     }
@@ -200,6 +199,9 @@ impl<'a> AppComponent<'a> {
                     with_state(&self.global_state, |s| {
                         s.focus = Focus::Home;
                     });
+                }
+                Key::Char(' ') => {
+                    self.play().await;
                 }
                 Key::Char('h') => {
                     with_state(&self.global_state, |s| {

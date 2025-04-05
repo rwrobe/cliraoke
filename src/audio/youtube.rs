@@ -1,13 +1,23 @@
+use crate::audio::platform::get_platform_backend;
 use crate::audio::{AudioFetcher, AudioResult, AudioService};
 use anyhow::anyhow;
 use async_trait::async_trait;
-use reqwest::Client;
 use futures_util::StreamExt;
+use log::info;
+use reqwest::Client;
+use rodio::source::SineWave;
+use rodio::{OutputStream, Sink, Source};
 use serde_json::Value;
+use std::error::Error;
 use std::process::Command;
 use std::time::Duration;
-use soloud::*;
+use stream_download::http::HttpStream;
+use stream_download::http::reqwest::Client as StreamClient;
+use stream_download::source::{DecodeError, SourceStream};
+use stream_download::storage::temp::TempStorageProvider;
+use stream_download::{Settings, StreamDownload};
 use tokio::time::sleep;
+use youtube_dl::YoutubeDl;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
@@ -77,7 +87,8 @@ impl YouTube {
             self.api_key, id,
         );
 
-        let res = self.http_ct
+        let res = self
+            .http_ct
             .get(&url)
             .header("Referer", "cliraoke") // Add referer header
             .send()
@@ -112,7 +123,10 @@ impl YouTube {
         let duration_str = &video_response.items[0].content_details.duration;
 
         // Parse as ISO 8601 duration: https://developers.google.com/youtube/v3/docs/videos/list
-        let duration = duration_str.parse::<iso8601_duration::Duration>().unwrap().to_std();
+        let duration = duration_str
+            .parse::<iso8601_duration::Duration>()
+            .unwrap()
+            .to_std();
 
         match duration {
             Some(duration) => Ok(duration),
@@ -128,7 +142,7 @@ impl YouTube {
 impl AudioFetcher for YouTube {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>> {
         if query.is_empty() {
-            return Ok(Vec::new())
+            return Ok(Vec::new());
         }
 
         let page_token = String::new(); // Token to handle pagination
@@ -143,7 +157,8 @@ impl AudioFetcher for YouTube {
             page_token
         );
 
-        let response = self.http_ct
+        let response = self
+            .http_ct
             .get(&url)
             .header("Referer", "cliraoke") // Add referer header
             .send()
@@ -230,36 +245,34 @@ impl AudioFetcher for YouTube {
 
 #[async_trait]
 impl AudioService for YouTube {
-    async fn play(&self, id: &str) -> anyhow::Result<()> {
-        let sl = Soloud::default()?;
-        // WavStream let's us stream sound to soloud.
-        let mut wav_stream = WavStream::default();
+    async fn play(&self, id: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let url = self.get_url(id).expect("funny message and dog poop");
 
-        // Get the audio URL using yt-dlp
-        let audio_url = self.get_url(id).ok_or_else(|| anyhow!("Failed to get audio URL"))?;
+        let stream = HttpStream::<StreamClient>::create(url.parse()?).await?;
 
-        // Buffer the url into memory
-        let response = reqwest::get(audio_url.as_str()).await?;
-        let mut stream = response.bytes_stream();
+        info!("content length={:?}", stream.content_length());
+        info!("content type={:?}", stream.content_type());
 
-        // Stream buffer.
-        let mut buffer = Vec::new();
+        let reader = match StreamDownload::from_stream(
+            stream,
+            TempStorageProvider::new(),
+            Settings::default(),
+        )
+        .await
+        {
+            Ok(reader) => reader,
+            Err(e) => return Err(e.decode_error().await)?,
+        };
 
-        // Read the stream in chunks and append to the buffer.
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
-            buffer.extend_from_slice(&chunk);
+        let handle = tokio::task::spawn_blocking(move || {
+            let (_stream, handle) = rodio::OutputStream::try_default()?;
+            let sink = rodio::Sink::try_new(&handle)?;
+            sink.append(rodio::Decoder::new(reader)?);
+            sink.sleep_until_end();
 
-            // Load buffered data into WavStream
-            wav_stream.load_mem(&buffer)?;
-        }
-
-        sl.play(&wav_stream);
-
-        while sl.voice_count() > 0 {
-            sleep(Duration::from_millis(100)).await;
-        }
-
+            Ok::<_, Box<dyn Error + Send + Sync>>(())
+        });
+        handle.await??;
         Ok(())
     }
 
