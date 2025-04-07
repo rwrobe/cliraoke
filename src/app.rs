@@ -135,8 +135,7 @@ impl<
                 Some(cs) => {
                     self.audio_service
                         .play(cs.video_id.as_str())
-                        .await
-                        .expect("dawg shit");
+                        .await;
                 }
                 None => {}
             }
@@ -201,7 +200,13 @@ impl<
                     });
                 }
                 Key::Char(' ') => {
-                    self.play().await;
+                    if get_state(&self.global_state).song_state!= SongState::Playing {
+                        with_state(&self.global_state, |s| {
+                            s.song_state = SongState::Playing;
+                        });
+                        self.play().await;
+                    }
+
                 }
                 Key::Char('h') => {
                     with_state(&self.global_state, |s| {

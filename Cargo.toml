@@ -48,3 +48,4 @@ stream-download = { version = "0.17.0", features = [
 ] }
 youtube_dl = { version = "0.10.0", features = ["tokio"] }
 log = "0.4.27"
+awedio = "0.4.1"

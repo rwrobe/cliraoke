@@ -16,11 +16,10 @@ pub struct AudioResult {
 #[async_trait]
 pub trait AudioFetcher {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>>;
-    async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult>;
 }
 
 #[async_trait]
 pub trait AudioService: Send + Sync {
-    async fn play(&self, id: &str) -> Result<(), Box<dyn Error + Send + Sync>>;
+    async fn play(&self, id: &str);
     fn pause(&self);
 }

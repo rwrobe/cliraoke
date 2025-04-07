@@ -6,18 +6,22 @@ use futures_util::StreamExt;
 use log::info;
 use reqwest::Client;
 use rodio::source::SineWave;
-use rodio::{OutputStream, Sink, Source};
+use rodio::{Decoder, OutputStream, Sink, Source};
 use serde_json::Value;
 use std::error::Error;
+use std::io::{Cursor, Read};
 use std::process::Command;
+use std::thread;
 use std::time::Duration;
 use stream_download::http::HttpStream;
 use stream_download::http::reqwest::Client as StreamClient;
 use stream_download::source::{DecodeError, SourceStream};
 use stream_download::storage::temp::TempStorageProvider;
 use stream_download::{Settings, StreamDownload};
+use tokio::runtime::Runtime;
 use tokio::time::sleep;
 use youtube_dl::YoutubeDl;
+use crate::audio;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
@@ -231,49 +235,45 @@ impl AudioFetcher for YouTube {
 
         Ok(audios)
     }
-
-    // TODO: This method is only necessary if we need to download the file, e.g., for soloud.
-    async fn fetch(&self, id: &str) -> anyhow::Result<AudioResult> {
-        Ok(AudioResult {
-            id: id.to_string(),
-            title: "Dummy Title".to_string(),
-            artist: "Dummy Artist".to_string(),
-            duration: Duration::new(0, 0),
-        })
-    }
 }
 
 #[async_trait]
 impl AudioService for YouTube {
-    async fn play(&self, id: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let url = self.get_url(id).expect("funny message and dog poop");
+    async fn play(&self, id: &str) {
+        let url =  self.get_url(id).expect("Failed to get url");
 
-        let stream = HttpStream::<StreamClient>::create(url.parse()?).await?;
+        // Create a Command to run ffplay with silenced output
+        let mut cmd = Command::new("ffplay");
 
-        info!("content length={:?}", stream.content_length());
-        info!("content type={:?}", stream.content_type());
+        // Add arguments
+        cmd.args(["-nodisp", "-autoexit", "-loglevel", "quiet", url.as_str()]);
 
-        let reader = match StreamDownload::from_stream(
-            stream,
-            TempStorageProvider::new(),
-            Settings::default(),
-        )
-        .await
+        // Redirect stdout and stderr to /dev/null (on Unix) or NUL (on Windows)
+        #[cfg(target_family = "unix")]
         {
-            Ok(reader) => reader,
-            Err(e) => return Err(e.decode_error().await)?,
-        };
+            cmd.stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+        }
 
-        let handle = tokio::task::spawn_blocking(move || {
-            let (_stream, handle) = rodio::OutputStream::try_default()?;
-            let sink = rodio::Sink::try_new(&handle)?;
-            sink.append(rodio::Decoder::new(reader)?);
-            sink.sleep_until_end();
+        #[cfg(target_family = "windows")]
+        {
+            use std::process::Stdio;
+            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+        }
 
-            Ok::<_, Box<dyn Error + Send + Sync>>(())
-        });
-        handle.await??;
-        Ok(())
+        // Run the command
+        match cmd.status() {
+            Ok(status) => {
+                if status.success() {
+                    println!("Audio playback completed via ffplay");
+                } else {
+                    println!("ffplay failed with status: {}", status);
+                }
+            }
+            Err(e) => {
+                println!("Failed to run ffplay: {}", e);
+            }
+        }
     }
 
     fn pause(&self) {

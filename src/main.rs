@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(unused_variables)]
+#![allow(unstable_features)]
 
 // ANCHOR: all
 pub mod cli;
