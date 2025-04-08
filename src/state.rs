@@ -1,6 +1,6 @@
-use std::sync::{Arc, Mutex, MutexGuard};
 use crate::models::song::{Song, SongList};
 use crate::state::SongState::Paused;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use strum::Display;
 

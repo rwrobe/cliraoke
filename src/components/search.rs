@@ -2,11 +2,11 @@ use super::{Frame, RenderableComponent, ResettableComponent};
 use crate::app::GlobalState;
 use crate::audio::{AudioFetcher, AudioResult};
 use crate::components::search::NavDir::{Down, Up};
-use crate::components::stateful_list::{StatefulList, get_list_items};
+use crate::components::stateful_list::{get_list_items, StatefulList};
 use crate::events::{EventState, Key};
 use crate::lyrics::{LyricsFetcher, LyricsResult};
 use crate::models::song::Song;
-use crate::state::{AMGlobalState, Focus, InputMode, with_state};
+use crate::state::{with_state, Focus, InputMode};
 use color_eyre::eyre::Result;
 use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
@@ -15,8 +15,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 use std::sync::{Arc, Mutex};
-use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 enum SearchFocus {

@@ -1,13 +1,9 @@
-use std::os::macos::raw::stat;
-use crate::audio;
 use crate::audio::{AudioFetcher, AudioService};
 use crate::components::RenderableComponent;
 use crate::events::EventState;
-use crate::lyrics;
 use crate::lyrics::{LyricsFetcher, LyricsService};
-use crate::models::song::LyricsMap;
 pub(crate) use crate::state::GlobalState;
-use crate::state::{Focus, InputMode, SongState, get_state, with_async_state, with_state};
+use crate::state::{get_state, with_state, Focus, InputMode, SongState};
 use crate::util::{EMDASH, EMOJI_MARTINI};
 use crate::{
     components::{
@@ -15,11 +11,10 @@ use crate::{
     },
     events::Key,
 };
-use color_eyre::owo_colors::OwoColorize;
 use ratatui::{
-    Frame,
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
+    Frame,
 };
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -51,12 +46,7 @@ where
     LF: LyricsFetcher + Send + Sync + 'static,
     LS: LyricsService + Send + Sync + 'static,
 {
-    pub fn new(
-        lf: Arc<LF>,
-        ls: Arc<LS>,
-        af: Arc<AF>,
-        aus: Arc<AS>,
-    ) -> Self {
+    pub fn new(lf: Arc<LF>, ls: Arc<LS>, af: Arc<AF>, aus: Arc<AS>) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
             // Injected services.

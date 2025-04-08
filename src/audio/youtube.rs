@@ -1,27 +1,11 @@
-use crate::audio::platform::get_platform_backend;
 use crate::audio::{AudioFetcher, AudioResult, AudioService};
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures_util::StreamExt;
-use log::info;
 use reqwest::Client;
-use rodio::source::SineWave;
-use rodio::{Decoder, OutputStream, Sink, Source};
 use serde_json::Value;
 use std::error::Error;
-use std::io::{Cursor, Read};
 use std::process::Command;
-use std::thread;
 use std::time::Duration;
-use stream_download::http::HttpStream;
-use stream_download::http::reqwest::Client as StreamClient;
-use stream_download::source::{DecodeError, SourceStream};
-use stream_download::storage::temp::TempStorageProvider;
-use stream_download::{Settings, StreamDownload};
-use tokio::runtime::Runtime;
-use tokio::time::sleep;
-use youtube_dl::YoutubeDl;
-use crate::audio;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 

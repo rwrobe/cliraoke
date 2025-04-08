@@ -2,6 +2,7 @@ use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::events::{EventState, Key};
 use crate::state::{get_state, with_state, Focus};
+use crate::util::EMDASH;
 use color_eyre::eyre::Result;
 use ratatui::backend::Backend;
 use ratatui::layout::Alignment;
@@ -17,7 +18,6 @@ use ratatui::{
     Frame,
 };
 use std::sync::{Arc, Mutex};
-use crate::util::EMDASH;
 
 #[derive(Default)]
 pub struct Queue {

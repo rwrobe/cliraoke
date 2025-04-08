@@ -1,16 +1,16 @@
 use super::RenderableComponent;
 use crate::app::GlobalState;
+use crate::state::get_state;
 use block::Title;
 use ratatui::style::Stylize;
 use ratatui::widgets::block;
 use ratatui::{
-    Frame,
     backend::Backend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     widgets::Block,
+    Frame,
 };
 use std::sync::{Arc, Mutex};
-use crate::state::get_state;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Ticker {

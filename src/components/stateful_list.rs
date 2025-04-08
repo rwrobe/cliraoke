@@ -1,5 +1,5 @@
-use ratatui::widgets::{ListItem, ListState};
 use crate::components::ResettableComponent;
+use ratatui::widgets::{ListItem, ListState};
 
 #[derive(Debug, Default, Clone)]
 pub struct StatefulList<'a> {

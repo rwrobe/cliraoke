@@ -1,16 +1,16 @@
 use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::lyrics::LyricsService;
-use crate::state::{AMGlobalState, get_state};
+use crate::state::{get_state, AMGlobalState};
 use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Margin};
 use ratatui::widgets::{BorderType, Paragraph, Wrap};
 use ratatui::{
-    Frame,
     layout::Rect,
     style::{Color, Style, Stylize},
     text::Line,
     widgets::{Block, Borders},
+    Frame,
 };
 use std::sync::{Arc, Mutex};
 
