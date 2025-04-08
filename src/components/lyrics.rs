@@ -58,10 +58,15 @@ where
 
                 let lines = current_lyrics
                     .iter()
-                    .map(|line| {
+                    .enumerate()
+                    .map(|(i, line)| {
                         let line = line.to_string();
                         let line = line.replace('\n', " ");
-                        Line::from(line)
+                        if i == 1 {
+                            Line::from(line).style(Style::default().fg(Color::Green))
+                        } else {
+                            Line::from(line).style(Style::default().fg(Color::DarkGray))
+                        }
                     })
                     .collect::<Vec<_>>();
 

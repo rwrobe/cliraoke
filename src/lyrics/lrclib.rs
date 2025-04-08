@@ -107,26 +107,32 @@ impl LyricsFetcher for LRCLib {
 impl LyricsService for LRCLib {
     fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<Vec<String>> {
         let mut result = Vec::new();
+        let mut current_ts = 0;
+        let mut current_lyric = "".to_string();
 
-        // Fetch the current lyric
-        if let Some(lyric) = lyrics_map.get(&elapsed_time_ms) {
-            result.push(lyric.clone());
+        // Get the current lyric.
+        if let Some((ts, current)) = lyrics_map.range(..=elapsed_time_ms).next_back() {
+            current_ts = ts.clone();
+            current_lyric = current.to_string();
+        }
+        
+        // Fetch the previous lyric (closest time before the current time) and push it to the result.
+        let prev_lyric = lyrics_map.range(..current_ts).next_back();
+        if let Some((_, prev)) = prev_lyric {
+            result.push(prev.clone());
         } else {
-            result.push("".to_string());
+            result.push("".to_string()); // No previous lyric
         }
 
-        // Fetch the previous lyric
-        if let Some((_, prev_lyric)) = lyrics_map.range(..elapsed_time_ms).next_back() {
-            result.insert(0, prev_lyric.clone());
-        } else {
-            result.insert(0, "".to_string());
-        }
+        // Push the current lyric to the result.
+        result.push(current_lyric);
 
-        // Fetch the next lyric
-        if let Some((_, next_lyric)) = lyrics_map.range((elapsed_time_ms + 1)..).next() {
-            result.push(next_lyric.clone());
+        // Fetch the next lyric (closest time after the current time)
+        let next_lyric = lyrics_map.range(elapsed_time_ms..).next();
+        if let Some((_, next)) = next_lyric {
+            result.push(next.clone());
         } else {
-            result.push("".to_string());
+            result.push("".to_string()); // No next lyric
         }
 
         Ok(result)

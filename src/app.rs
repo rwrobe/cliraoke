@@ -88,6 +88,7 @@ where
 
         // Maybe play.
         self.advance_queue();
+        self.play();
 
         // Update the timer.
         let mut state = self.global_state.lock().unwrap();
@@ -234,7 +235,7 @@ where
                     });
                 }
                 Key::Char(' ') => {
-                    self.play();
+                    // TODO: play/pause
                 }
                 Key::Char('h') => {
                     with_state(&self.global_state, |s| {
