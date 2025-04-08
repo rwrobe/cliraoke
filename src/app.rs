@@ -3,7 +3,9 @@ use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::lyrics::{LyricsFetcher, LyricsService};
 pub(crate) use crate::state::GlobalState;
-use crate::state::{get_state, with_state, Focus, InputMode, SongState};
+use crate::state::{
+    Focus, InputMode, SongState, get_guarded_state, get_state, has_next_song, with_state,
+};
 use crate::util::{EMDASH, EMOJI_MARTINI};
 use crate::{
     components::{
@@ -12,12 +14,13 @@ use crate::{
     events::Key,
 };
 use ratatui::{
+    Frame,
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
-    Frame,
 };
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 pub struct AppComponent<'a, AF, AS, LF, LS>
 where
@@ -83,57 +86,55 @@ where
             self.tick_accumulator %= 1000;
         }
 
-        // Update global state.
-        with_state(&self.global_state.clone(), |s| {
-            // Move the next song in the queue to the current song if nothing is playing.
-            if s.current_song.is_none() && !s.song_list.is_empty() {
-                // play spawns two scoped threads for the music and lyrics.
-                self.play()
-            }
-        });
+        // Maybe play.
+        self.play();
     }
 
     fn play(&self) {
-        let mut state = get_state(&self.global_state);
-
-        let song = Some(state.song_list.remove(0));
-        let mut lyrics = None;
-        if let Some(song) = song.clone() {
-            lyrics = song.lyric_map;
+        if !has_next_song(&self.global_state) {
+            return;
         }
+        // Lock state to get the current song and lyrics map.
+        let (cs, lyrics) = {
+            let mut state = get_guarded_state(&self.global_state);
 
-        if let (Some(cs), Some(lyrics)) = (song.clone(), lyrics) {
-            // Set initial state for a song.
-            state.current_song = song.clone();
+            let song = state.song_list.remove(0);
+            let lyrics = match song.lyric_map.clone() {
+                Some(map) => map,
+                None => {
+                    panic!("No lyrics found for song");
+                }
+            };
+
+            // Set basic state
+            state.current_song = Some(song.clone());
             state.current_song_elapsed = 0;
             state.song_state = SongState::Playing;
 
-            // Spawn a thread for playing the audio.
-            thread::scope(|s| {
-                let aus = Arc::clone(&self.audio_service);
-                let ls = Arc::clone(&self.lyrics_service);
-                let id = cs.video_id.clone();
+            (song, lyrics)
+        };
 
-                let elapsed = state.current_song_elapsed;
-                let lyrics_clone = lyrics.clone();
-                let state_arc = Arc::clone(&self.global_state);
+        // Clone the services and state for the threads.
+        let aus = Arc::clone(&self.audio_service);
+        let ls = Arc::clone(&self.lyrics_service);
+        let id = cs.video_id.clone();
+        let elapsed = 0;
+        let state_arc = Arc::clone(&self.global_state);
 
-                s.spawn(async move || {
-                    aus.play(&id).await;
-                });
+        let audio_handle = thread::spawn(move || {
+            aus.play(&id);
+        });
 
-                s.spawn(move || {
-                    if let Ok(lyric) = ls.play(elapsed, lyrics_clone) {
-                        if !lyric.is_empty() {
-                            let mut ret = vec![lyric];
-                            if let Ok(mut state) = state_arc.lock() {
-                                state.current_lyrics = ret;
-                            }
-                        }
+        let lyrics_handle = thread::spawn(move || {
+            if let Ok(lyric) = ls.play(elapsed, lyrics) {
+                if !lyric.is_empty() {
+                    let ret = vec![lyric];
+                    if let Ok(mut state) = state_arc.lock() {
+                        state.current_lyrics = ret;
                     }
-                });
-            });
-        }
+                }
+            }
+        });
     }
 
     // event handles keystrokes and updates the state of the application.

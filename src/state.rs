@@ -22,7 +22,7 @@ pub enum Focus {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-pub enum SongState{
+pub enum SongState {
     #[default]
     Playing,
     Paused,
@@ -58,6 +58,10 @@ impl GlobalState {
             session_time_elapsed: Duration::new(0, 0),
         }
     }
+
+    pub fn has_next_song(&self) -> bool {
+        self.current_song.is_none() && !self.song_list.is_empty()
+    }
 }
 
 // This is a global state that will be shared across the application.
@@ -74,6 +78,17 @@ pub fn get_state(state: &AMGlobalState) -> GlobalState {
 
 pub fn get_guarded_state(state: &AMGlobalState) -> MutexGuard<GlobalState> {
     state.lock().expect("Failed to lock global state")
+}
+
+pub fn has_next_song(state: &AMGlobalState) -> bool {
+    let res = {
+        state
+            .lock()
+            .expect("Failed to lock global state")
+            .has_next_song()
+    };
+
+    res
 }
 
 // With closure that will be called with a mutable reference to the global state.

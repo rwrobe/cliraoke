@@ -222,9 +222,8 @@ impl AudioFetcher for YouTube {
     }
 }
 
-#[async_trait]
 impl AudioService for YouTube {
-    async fn play(&self, id: &str) {
+    fn play(&self, id: &str) {
         let url =  self.get_url(id).expect("Failed to get url");
 
         // Create a Command to run ffplay with silenced output

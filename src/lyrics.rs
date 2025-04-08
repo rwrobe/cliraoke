@@ -51,6 +51,6 @@ pub trait LyricsFetcher {
     async fn parse(&self, synced: String) -> anyhow::Result<Option<crate::models::song::LyricsMap>>;
 }
 
-pub trait LyricsService {
+pub trait LyricsService: Send + Sync {
     fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<String>;
 }

@@ -18,8 +18,7 @@ pub trait AudioFetcher {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<AudioResult>>;
 }
 
-#[async_trait]
 pub trait AudioService: Send + Sync {
-    async fn play(&self, id: &str);
+    fn play(&self, id: &str);
     fn pause(&self);
 }
