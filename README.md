@@ -22,22 +22,16 @@ To run the binary, run
 cargo run --release
 ```
 
-When greeted with my character-filled prompts, simply enter a query. This is a YouTube search query that I add the string `"karaoke version"` at the end of.
+To search from the homescreen, type `/` to enter search mode. Enter your search and hit enter to see song and lyric options.
+
+![Search](./docs/search.gif)
+
+CLIraoke also supports queuing. To see your queue, type `u`. To add a song at any time, search for a new song and select it in audio+lyrics selector.
+
+![Queue](./docs/queue.gif)
 
 You will then receive a list of synced lyrics from the awesome open project [LRCLib](https://lrclib.net/). Experiment with combinations, as the audio and lyrics may not be perfectly synced at start time.
 
 ## Troubleshooting
 
 You may need to install `yt-dlp` and `ffmpeg` for this thing.
-
-## Improvements
-
-To make this better:
-
-- [ ] Handle yt-dlp and ffmpeg commands in Rust wrappers, or pipe audio to a sink to play back
-- [ ] Better controls: kill a song without killing the app
-- [ ] Queueing
-- [ ] Back up LRCLib dump
-- [ ] Add DB so that users can indicate when a song/lyric combo is good. The DB saves the two IDs and returns search hits from there first.
-- [ ] Ability to scrub audio forward with arrow keys, so syncing lines up
-- [ ] ASCII stock photos, like one of those cheesy old karaoke display
