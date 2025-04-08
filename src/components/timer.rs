@@ -59,7 +59,7 @@ impl RenderableComponent for Timer {
                 }
 
                 // Song remaining time as ms.
-                let song_remaining_time = song.duration_ms - global_state.current_song_elapsed;
+                let song_remaining_time = song.duration_ms - global_state.current_song_elapsed_ms;
 
                 if song_remaining_time == 0 {
                     return Ok(());

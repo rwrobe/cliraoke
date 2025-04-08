@@ -80,25 +80,49 @@ where
             let seconds = self.tick_accumulator / 1000;
 
             with_state(&self.global_state, |s| {
-                s.session_time_elapsed += std::time::Duration::from_secs(seconds);
+                s.session_time_elapsed += Duration::from_secs(seconds);
             });
 
             self.tick_accumulator %= 1000;
         }
 
         // Maybe play.
-        self.play();
+        self.advance_queue();
+
+        // Update the timer.
+        let mut state = self.global_state.lock().unwrap();
+        if state.song_state == SongState::Playing {
+            state.current_song_elapsed_ms += tick_rate_ms;
+        }
+    }
+
+    // advance_queue advances the next song in the queue if there is one.
+    fn advance_queue(&mut self) {
+        let imu_state = get_state(&self.global_state);
+        if imu_state.song_state == SongState::Playing || !imu_state.has_next_song() {
+            return;
+        }
+
+        let mut mu_state = get_guarded_state(&self.global_state);
+
+        let song = mu_state.song_list.remove(0);
+
+        mu_state.current_song = Some(song.clone());
+        mu_state.current_song_elapsed_ms = 0;
     }
 
     fn play(&self) {
-        if !has_next_song(&self.global_state) {
+        let imu_state = get_state(&self.global_state);
+        if imu_state.song_state == SongState::Playing || imu_state.current_song.is_none() {
             return;
         }
-        // Lock state to get the current song and lyrics map.
+
+        let song = imu_state.current_song.unwrap_or_default();
+
+        // Lock state to get the current song and lyrics map and set the state to playing.
         let (cs, lyrics) = {
             let mut state = get_guarded_state(&self.global_state);
 
-            let song = state.song_list.remove(0);
             let lyrics = match song.lyric_map.clone() {
                 Some(map) => map,
                 None => {
@@ -106,9 +130,6 @@ where
                 }
             };
 
-            // Set basic state
-            state.current_song = Some(song.clone());
-            state.current_song_elapsed = 0;
             state.song_state = SongState::Playing;
 
             (song, lyrics)
@@ -118,23 +139,39 @@ where
         let aus = Arc::clone(&self.audio_service);
         let ls = Arc::clone(&self.lyrics_service);
         let id = cs.video_id.clone();
-        let elapsed = 0;
-        let state = self.global_state.clone();
+        let au_state = self.global_state.clone();
+        let ly_state = self.global_state.clone();
 
         let audio_handle = thread::spawn(move || {
             aus.play(&id);
+
+            // Update play status when the song finishes.
+            let mut state = get_guarded_state(&au_state);
+            state.song_state = SongState::None;
         });
 
         let lyrics_handle = thread::spawn(move || {
-            if let Ok(lyrics) = ls.play(elapsed, lyrics) {
+            loop {
+                // Sleep for 200ms to avoid busy waiting.
+                thread::sleep(Duration::from_millis(200));
+
+                // Check if the song is still playing.
+                let imu_state = get_state(&ly_state);
+                if imu_state.song_state != SongState::Playing {
+                    break;
+                }
+
+                let lyrics = ls
+                    .play(imu_state.current_song_elapsed_ms, lyrics.clone())
+                    .unwrap_or(Vec::new());
+
                 if lyrics.is_empty() {
                     return;
                 }
-
                 // Lock the state to update the current lyric.
-                let mut state = get_guarded_state(&state);
-                
-                state.current_lyrics = lyrics;
+                let mut state = get_guarded_state(&ly_state);
+
+                state.current_lyrics = lyrics.clone();
             }
         });
     }
@@ -197,7 +234,7 @@ where
                     });
                 }
                 Key::Char(' ') => {
-                    // TODO: play/pause
+                    self.play();
                 }
                 Key::Char('h') => {
                     with_state(&self.global_state, |s| {
@@ -241,7 +278,7 @@ where
                 " {} CLIraoke {} Karaoke for the Command Line {} ",
                 EMOJI_MARTINI, EMDASH, EMOJI_MARTINI
             )
-                .as_str(),
+            .as_str(),
         );
         app_title.render::<B>(f, header)?;
 

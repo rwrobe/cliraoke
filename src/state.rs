@@ -24,6 +24,7 @@ pub enum Focus {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum SongState {
     #[default]
+    None,
     Playing,
     Paused,
 }
@@ -33,7 +34,7 @@ pub struct GlobalState {
     // current_lyrics will be a set of 3 lines of lyrics, where index 1 is the current lyric.
     pub(crate) current_lyrics: Vec<String>,
     pub(crate) current_song: Option<Song>,
-    pub(crate) current_song_elapsed: u64,
+    pub(crate) current_song_elapsed_ms: u64,
     pub(crate) focus: Focus,
     pub(crate) mode: InputMode,
     pub(crate) session_time_elapsed: Duration,
@@ -48,9 +49,9 @@ impl GlobalState {
 
     pub fn default() -> Self {
         Self {
-            song_state: Paused,
+            song_state: SongState::None,
             current_song: None,
-            current_song_elapsed: 0,
+            current_song_elapsed_ms: 0,
             current_lyrics: Vec::new(),
             song_list: Vec::new(),
             mode: InputMode::Nav,
@@ -72,7 +73,7 @@ pub type AMGlobalState = Arc<Mutex<GlobalState>>;
 // NB: For now, global state is small enough I feel like we can clone it when we need access to its
 // members.
 pub fn get_state(state: &AMGlobalState) -> GlobalState {
-    let guard = state.lock().unwrap();
+    let guard = state.lock().expect("Failed to lock GlobalState");
     guard.clone()
 }
 
