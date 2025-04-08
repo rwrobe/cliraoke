@@ -1,122 +1,101 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unstable_features)]
+
+// ANCHOR: all
+pub mod cli;
+pub mod components;
+mod models;
+mod util;
+mod events;
+mod app;
+mod state;
 mod audio;
-mod cli;
 mod lyrics;
 
-use crate::cli::cli::CLIOption;
+use crate::audio::youtube::YouTube;
+use crate::lyrics::lrclib::LRCLib;
+use anyhow::Result;
+use app::AppComponent;
+use crossterm::{
+  execute,
+  terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use dotenv::dotenv;
-use std::env;
-use std::process::exit;
+use events::{Event, Events, Key};
+use ratatui::{backend::CrosstermBackend, Terminal};
+use std::io;
+use std::sync::Arc;
 
+// APP_TICK_RATE is the rate in ms at which the app will render. For timers, ensure it cleanly
+// divides 1000.
+const APP_TICK_RATE: u64 = 200;
 const ENV_API_KEY: &str = "YOUTUBE_API_KEY";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
+async fn main() -> Result<()> {
+  dotenv().ok();
+  setup_terminal()?;
 
-    let api_key = env::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
+  let stdout = io::stdout();
+  let backend = CrosstermBackend::new(stdout);
+  let mut terminal = Terminal::new(backend)?;
+  let events = Events::new(APP_TICK_RATE);
 
-    // Get user query.
-    println!("Welcome to CLIraoke.");
-    print!("Please type a song or artist name: ");
-    let query_base = cli::cli::get_user_input();
 
-    // TODO: Run lyric and video fetching concurrently.
-    // Show options for the query:
-    let videos = audio::audio::fetch_videos(api_key.as_str(), query_base.as_str()).await;
+  let api_key = dotenv::var(ENV_API_KEY).expect("YOUTUBE_API_KEY must be set");
+  // Create lyrics provider.
+  let lyrics = LRCLib::new();
+  let audio = YouTube::new(api_key);
 
-    if videos.is_err() {
-        println!(
-            "Error fetching videos: {}",
-            videos.err().and_then(|e| Some(e.to_string())).unwrap()
-        );
-        exit(1);
+  let mut app = AppComponent::new(
+    Arc::new(lyrics.clone()),
+    Arc::new(lyrics),
+    Arc::new(audio.clone()),
+    Arc::new(audio),
+  );
+  terminal.clear()?;
+
+  loop {
+    terminal.draw(|f| {
+      if let Err(err) = app.render::<CrosstermBackend<io::Stdout>>(f, f.area()) {
+        println!("Error thrown: {:?}", err);
+        std::process::exit(1);
+      }
+    })?;
+
+    match events.next()? {
+      Event::Input(key) => match app.event(key).await {
+        Ok(state) => {
+          if !state.is_consumed() && (key == Key::Char('q')) {
+            break;
+          }
+        }
+        Err(_) => unimplemented!(),
+      },
+
+      Event::Tick => app.tick(APP_TICK_RATE).await
     }
+  }
 
-    let videos = videos?; // Something about borrow checker? who knows
-    if videos.is_empty() {
-        println!("No videos found");
-        exit(1);
-    }
+  shutdown_terminal()?;
+  terminal.show_cursor()?;
 
-    // Get the video id from the user:
-    let mut vid_opts: Vec<CLIOption> = Vec::new();
-    for video in videos {
-        let opt = CLIOption {
-            artist: Some(video.artist),
-            id: video.id,
-            title: video.title,
-        };
-        vid_opts.push(opt);
-    }
+  Ok(())
+}
 
-    let video_opt =
-        tokio::task::spawn_blocking(move || cli::cli::present_options(vid_opts)).await?;
+fn setup_terminal() -> Result<()> {
+  enable_raw_mode()?;
+  let mut stdout = io::stdout();
+  execute!(stdout, EnterAlternateScreen)?;
+  Ok(())
+}
 
-    let lyrs = lyrics::search_lyrics(query_base.as_str()).await?;
+fn shutdown_terminal() -> Result<()> {
+  disable_raw_mode()?;
 
-    if lyrs.is_empty() {
-        println!("No lyrics found for this song.");
-        exit(1);
-    }
-
-    println!("What a banger. OK, now select the lyrics to use: ");
-
-    // Show options for the lyrics:
-    let mut lyr_opts: Vec<CLIOption> = Vec::new();
-    for lyr in lyrs {
-        let opt = CLIOption {
-            artist: Some(lyr.artist),
-            id: lyr.id,
-            title: lyr.title,
-        };
-        lyr_opts.push(opt);
-    }
-
-    let lyric_opt =
-        tokio::task::spawn_blocking(move || cli::cli::present_options(lyr_opts)).await?;
-    // TODO: Handle error case
-    if lyric_opt.is_none() {
-        println!("No lyrics available for this track.");
-        exit(1);
-    }
-
-    let lyrics_map = lyrics::fetch_lyrics(lyric_opt.unwrap().id.as_str()).await?;
-
-    // TODO: Handle error case
-    if lyrics_map.is_none() {
-        println!("No lyrics available for this track.");
-        exit(1);
-    }
-
-    // Get the audio URL for the video:
-    let mut audio_url: Option<String> = None;
-    if let Some(video_opt) = video_opt {
-        audio_url = tokio::task::spawn_blocking(move || {
-            audio::audio::get_youtube_audio_url(video_opt.id.as_str())
-        })
-        .await?;
-    }
-
-    if audio_url.is_none() {
-        println!("Error getting audio URL");
-        exit(1);
-    }
-
-    let _play_thread = std::thread::spawn(move || {
-        audio::audio::play_audio(audio_url.unwrap().as_str());
-    });
-
-    // Display lyrics in sync with playback
-    // Safe unwrap because we
-    lyrics::display_synced_lyrics(&lyrics_map.unwrap());
-
-    // Wait for audio playback to finish
-    if let Err(e) = tokio::signal::ctrl_c().await {
-        println!("Error waiting for Ctrl+C: {}", e);
-    }
-
-    // Audio playback has stopped
-    println!("Playback ended");
-
-    Ok(())
+  let mut stdout = io::stdout();
+  execute!(stdout, LeaveAlternateScreen)?;
+  Ok(())
 }

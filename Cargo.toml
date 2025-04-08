@@ -1,19 +1,51 @@
 [package]
 name = "cliraoke"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+description = "Karaoke for the command line"
+repository = "https://github.com/rwrobe/cliraoke"
+authors = ["Rob Ward", "Daniel Lee Yochum Jr."]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.97"
-dotenv = "0.15"
-regex = "1.11.1"
-reqwest = { version = "0.11", features = ["json", "blocking"] }
-rodio = "0.20.1"
-serde_json = "1.0"
-serde = { version = "1.0.219", default-features = false, features = [
-    "derive",
+anyhow = "1.0.66"
+clap = { version = "4.4.5", features = [
     "std",
+    "color",
+    "help",
+    "usage",
+    "error-context",
+    "suggestions",
+    "derive",
+    "cargo",
+    "wrap_help",
+    "unicode",
+    "string",
+    "unstable-styles",
 ] }
-thiserror = "2.0.12"
-tokio = { version = "1", features = ["full"] }
-yt-dlp = "1.2.3"
+color-eyre = "0.6.2"
+crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
+dotenv = "0.15"
+reqwest = { version = "0.11", features = ["json", "blocking", "stream"] }
+ratatui = { version = "0.29.0", features = ["serde", "macros"] }
+serde = { version = "1.0.188", features = ["derive"] }
+serde_json = "1.0.107"
+strum = { version = "0.25.0", features = ["derive"] }
+tokio = { version = "1.32.0", features = ["full"] }
+tui-input = { version = "0.8.0", features = ["serde"] }
+regex = "1.11.1"
+async-trait = "0.1.88"
+crossbeam = "0.8.4"
+futures = "0.3.31"
+iso8601-duration = "0.2.0"
+soloud = { version = "1.1.0", features = ["coreaudio"] }
+futures-util = "0.3.31"
+rodio = "0.20.1"
+stream-download = { version = "0.17.0", features = [
+    "process",
+    "reqwest-native-tls",
+] }
+youtube_dl = { version = "0.10.0", features = ["tokio"] }
+log = "0.4.27"
+awedio = "0.4.1"
