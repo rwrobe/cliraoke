@@ -105,18 +105,30 @@ impl LyricsFetcher for LRCLib {
 }
 
 impl LyricsService for LRCLib {
-    fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<String> {
-        if let Some(lyric) = lyrics_map.get(&elapsed_time_ms) {
-            // Calculate minutes and seconds for display
-            let minutes = elapsed_time_ms / 60000;
-            let seconds = (elapsed_time_ms % 60000) / 1000;
-            let millis = elapsed_time_ms % 1000;
+    fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<Vec<String>> {
+        let mut result = Vec::new();
 
-            // Return timestamp and lyric
-            return Ok(lyric.into());
+        // Fetch the current lyric
+        if let Some(lyric) = lyrics_map.get(&elapsed_time_ms) {
+            result.push(lyric.clone());
+        } else {
+            result.push("".to_string());
         }
 
-        // If no lyric found for the timestamp, return an empty string
-        Ok("".to_string())
+        // Fetch the previous lyric
+        if let Some((_, prev_lyric)) = lyrics_map.range(..elapsed_time_ms).next_back() {
+            result.insert(0, prev_lyric.clone());
+        } else {
+            result.insert(0, "".to_string());
+        }
+
+        // Fetch the next lyric
+        if let Some((_, next_lyric)) = lyrics_map.range((elapsed_time_ms + 1)..).next() {
+            result.push(next_lyric.clone());
+        } else {
+            result.push("".to_string());
+        }
+
+        Ok(result)
     }
 }

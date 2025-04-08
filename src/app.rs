@@ -119,20 +119,22 @@ where
         let ls = Arc::clone(&self.lyrics_service);
         let id = cs.video_id.clone();
         let elapsed = 0;
-        let state_arc = Arc::clone(&self.global_state);
+        let state = self.global_state.clone();
 
         let audio_handle = thread::spawn(move || {
             aus.play(&id);
         });
 
         let lyrics_handle = thread::spawn(move || {
-            if let Ok(lyric) = ls.play(elapsed, lyrics) {
-                if !lyric.is_empty() {
-                    let ret = vec![lyric];
-                    if let Ok(mut state) = state_arc.lock() {
-                        state.current_lyrics = ret;
-                    }
+            if let Ok(lyrics) = ls.play(elapsed, lyrics) {
+                if lyrics.is_empty() {
+                    return;
                 }
+
+                // Lock the state to update the current lyric.
+                let mut state = get_guarded_state(&state);
+                
+                state.current_lyrics = lyrics;
             }
         });
     }
@@ -239,7 +241,7 @@ where
                 " {} CLIraoke {} Karaoke for the Command Line {} ",
                 EMOJI_MARTINI, EMDASH, EMOJI_MARTINI
             )
-            .as_str(),
+                .as_str(),
         );
         app_title.render::<B>(f, header)?;
 

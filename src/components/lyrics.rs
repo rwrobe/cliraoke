@@ -1,16 +1,16 @@
 use crate::app::GlobalState;
 use crate::components::RenderableComponent;
 use crate::lyrics::LyricsService;
-use crate::state::{get_state, AMGlobalState};
+use crate::state::{AMGlobalState, get_state};
 use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Margin};
 use ratatui::widgets::{BorderType, Paragraph, Wrap};
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Style, Stylize},
     text::Line,
     widgets::{Block, Borders},
-    Frame,
 };
 use std::sync::{Arc, Mutex};
 
@@ -56,9 +56,16 @@ where
                     .border_style(Style::default().fg(Color::Yellow));
                 f.render_widget(block, rect);
 
-                let line = Line::from_iter(current_lyrics);
+                let lines = current_lyrics
+                    .iter()
+                    .map(|line| {
+                        let line = line.to_string();
+                        let line = line.replace('\n', " ");
+                        Line::from(line)
+                    })
+                    .collect::<Vec<_>>();
 
-                let p = Paragraph::new(line)
+                let p = Paragraph::new(lines)
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: true });
 

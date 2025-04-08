@@ -52,5 +52,5 @@ pub trait LyricsFetcher {
 }
 
 pub trait LyricsService: Send + Sync {
-    fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<String>;
+    fn play(&self, elapsed_time_ms: u64, lyrics_map: LyricsMap) -> anyhow::Result<Vec<String>>;
 }
