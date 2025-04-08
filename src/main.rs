@@ -26,6 +26,7 @@ use dotenv::dotenv;
 use events::{Event, Events, Key};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
+use std::sync::Arc;
 
 // APP_TICK_RATE is the rate in ms at which the app will render. For timers, ensure it cleanly
 // divides 1000.
@@ -49,10 +50,10 @@ async fn main() -> Result<()> {
   let audio = YouTube::new(api_key);
 
   let mut app = AppComponent::new(
-    &lyrics,
-    &lyrics,
-    &audio,
-    &audio,
+    Arc::new(lyrics.clone()),
+    Arc::new(lyrics),
+    Arc::new(audio.clone()),
+    Arc::new(audio),
   );
   terminal.clear()?;
 

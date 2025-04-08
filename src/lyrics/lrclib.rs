@@ -6,6 +6,7 @@ use reqwest::Client;
 use serde_json::Value;
 use std::thread;
 
+#[derive(Clone)]
 pub struct LRCLib;
 
 impl LRCLib {

@@ -25,6 +25,7 @@ use crate::audio;
 
 const SEARCH_SUFFIX: &str = "karaoke version";
 
+#[derive(Debug, Clone)]
 pub struct YouTube {
     pub api_key: String,
     pub http_ct: Client,

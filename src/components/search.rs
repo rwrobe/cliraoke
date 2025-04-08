@@ -139,23 +139,27 @@ impl State<'_> {
     }
 }
 
-pub struct Search<'a> {
-    audio_fetcher: &'a dyn AudioFetcher,
+pub struct Search<'a, AF, LF>
+where
+    AF: AudioFetcher + Send + Sync + 'static,
+    LF: LyricsFetcher + Send + Sync + 'static,
+{
+    audio_fetcher: Arc<AF>,
     global_state: Arc<Mutex<GlobalState>>,
-    lyrics_service: &'a dyn LyricsFetcher,
+    lyrics_fetcher: Arc<LF>,
     state: State<'a>,
 }
 
-impl<'b> Search<'b> {
-    pub fn new(
-        global_state: Arc<Mutex<GlobalState>>,
-        lp: &'b (dyn LyricsFetcher + 'b),
-        ap: &'b (dyn AudioFetcher + 'b),
-    ) -> Self {
+impl<AF, LF> Search<'_, AF, LF>
+where
+    AF: AudioFetcher + Send + Sync + 'static,
+    LF: LyricsFetcher + Send + Sync + 'static,
+{
+    pub fn new(global_state: Arc<Mutex<GlobalState>>, af: Arc<AF>, lf: Arc<LF>) -> Self {
         Self {
-            audio_fetcher: ap,
+            audio_fetcher: af,
             global_state,
-            lyrics_service: lp,
+            lyrics_fetcher: lf,
             state: State::new(),
         }
     }
@@ -171,7 +175,7 @@ impl<'b> Search<'b> {
         }
 
         // Search lyrics.
-        let lyric_results = self.lyrics_service.search(self.state.query()).await;
+        let lyric_results = self.lyrics_fetcher.search(self.state.query()).await;
         match lyric_results {
             Ok(results) => self.state.with_lyrics_results(results),
             Err(e) => {
@@ -318,7 +322,7 @@ impl<'b> Search<'b> {
                     let this_lr = self.state.lyric_results[index].clone();
                     self.state.song = self.state.song.with_lr(
                         this_lr.clone(),
-                        self.lyrics_service
+                        self.lyrics_fetcher
                             .parse(this_lr.synced_lyrics.to_owned())
                             .await
                             .unwrap_or_else(|e| {
@@ -353,7 +357,11 @@ impl<'b> Search<'b> {
     }
 }
 
-impl RenderableComponent for Search<'_> {
+impl<AF, LF> RenderableComponent for Search<'_, AF, LF>
+where
+    AF: AudioFetcher + Send + Sync + 'static,
+    LF: LyricsFetcher + Send + Sync + 'static,
+{
     fn render<B: Backend>(&self, f: &mut Frame, rect: Rect) -> anyhow::Result<()> {
         let width = rect.width.max(3) - 3; // keep 2 for borders and 1 for cursor
         let scroll = self.state.query.visual_scroll(width as usize);

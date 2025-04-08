@@ -1,9 +1,11 @@
+use std::os::macos::raw::stat;
 use crate::audio;
 use crate::audio::{AudioFetcher, AudioService};
 use crate::components::RenderableComponent;
 use crate::events::EventState;
 use crate::lyrics;
 use crate::lyrics::{LyricsFetcher, LyricsService};
+use crate::models::song::LyricsMap;
 pub(crate) use crate::state::GlobalState;
 use crate::state::{Focus, InputMode, SongState, get_state, with_async_state, with_state};
 use crate::util::{EMDASH, EMOJI_MARTINI};
@@ -14,58 +16,58 @@ use crate::{
     events::Key,
 };
 use color_eyre::owo_colors::OwoColorize;
-use crossbeam;
 use ratatui::{
     Frame,
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
 };
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 pub struct AppComponent<'a, AF, AS, LF, LS>
 where
-    AF: AudioFetcher + 'a,
-    AS: AudioService + 'a,
-    LF: LyricsFetcher + 'a,
-    LS: LyricsService + 'a,
+    AF: AudioFetcher + Send + Sync + 'static,
+    AS: AudioService + Send + Sync + 'static,
+    LF: LyricsFetcher + Send + Sync + 'static,
+    LS: LyricsService + Send + Sync + 'static,
 {
-    audio_fetcher: &'a AF,
-    audio_service: &'a AS,
-    lyrics_fetcher: &'a LF,
-    lyrics_service: &'a LS,
+    audio_service: Arc<AS>,
+    lyrics_service: Arc<LS>,
 
     help: Help,
-    lyrics: Lyrics<'a>,
+    lyrics: Lyrics<LS>,
     queue: Queue,
-    search: Search<'a>,
+    search: Search<'a, AF, LF>,
     timer: Timer,
 
     global_state: Arc<Mutex<GlobalState>>,
     tick_accumulator: u64,
 }
 
-impl<
-    'a,
-    AF: AudioFetcher,
-    AS: AudioService,
-    LF: LyricsFetcher,
-    LS: LyricsService,
-> AppComponent<'a, AF, AS, LF, LS>
+impl<AF, AS, LF, LS> AppComponent<'_, AF, AS, LF, LS>
+where
+    AF: AudioFetcher + Send + Sync + 'static,
+    AS: AudioService + Send + Sync + 'static,
+    LF: LyricsFetcher + Send + Sync + 'static,
+    LS: LyricsService + Send + Sync + 'static,
 {
-    pub fn new(lp: &'a LF, ls: &'a LS, ap: &'a AF, aus: &'a AS) -> Self {
+    pub fn new(
+        lf: Arc<LF>,
+        ls: Arc<LS>,
+        af: Arc<AF>,
+        aus: Arc<AS>,
+    ) -> Self {
         let global_state = Arc::new(Mutex::new(GlobalState::new()));
         Self {
             // Injected services.
-            audio_fetcher: ap,
-            audio_service: aus,
-            lyrics_fetcher: lp,
-            lyrics_service: ls,
+            audio_service: aus.clone(),
+            lyrics_service: ls.clone(),
 
             // UI Components.
             help: Help::new(),
             lyrics: Lyrics::new(global_state.clone(), ls),
             queue: Queue::new(global_state.clone()),
-            search: Search::new(global_state.clone(), lp, ap),
+            search: Search::new(global_state.clone(), af, lf),
             timer: Timer::new(global_state.clone()),
 
             // State.
@@ -92,60 +94,55 @@ impl<
         }
 
         // Update global state.
-        let _ = with_state(&self.global_state.clone(), |s| {
+        with_state(&self.global_state.clone(), |s| {
             // Move the next song in the queue to the current song if nothing is playing.
             if s.current_song.is_none() && !s.song_list.is_empty() {
-                let song = Some(s.song_list.remove(0));
-                s.current_song = song.clone();
-                s.current_song_elapsed = 0;
-                s.song_state = SongState::Playing;
-            }
-
-            // If a song is playing, update the elapsed time and start lyrics.
-            if s.song_state == SongState::Playing {
-                s.current_song_elapsed += tick_rate_ms;
-
-                // Update the lyrics.
-                if let Some(song) = &s.current_song {
-                    if let Some(lyric_map) = &song.lyric_map {
-                        if let Ok(lyric) = self
-                            .lyrics_service
-                            .play(s.current_song_elapsed, lyric_map.clone())
-                        {
-                            // We don't want to replace the current lyric with an empty string.
-                            // TODO we should probably let the lyrics fade eventually.
-                            if lyric.is_empty() {
-                                return;
-                            }
-
-                            // TODO
-                            let mut ret = Vec::new();
-                            ret.push(lyric);
-                            s.current_lyrics = ret;
-                        }
-                    }
-                }
+                // play spawns two scoped threads for the music and lyrics.
+                self.play()
             }
         });
     }
 
-    async fn play(&self) {
+    fn play(&self) {
         let mut state = get_state(&self.global_state);
-        // Move the next song in the queue to the current song if nothing is playing.
-        if state.current_song.is_none() && !state.song_list.is_empty() {
-            let song = Some(state.song_list.remove(0));
+
+        let song = Some(state.song_list.remove(0));
+        let mut lyrics = None;
+        if let Some(song) = song.clone() {
+            lyrics = song.lyric_map;
+        }
+
+        if let (Some(cs), Some(lyrics)) = (song.clone(), lyrics) {
+            // Set initial state for a song.
             state.current_song = song.clone();
             state.current_song_elapsed = 0;
             state.song_state = SongState::Playing;
 
-            match song {
-                Some(cs) => {
-                    self.audio_service
-                        .play(cs.video_id.as_str())
-                        .await;
-                }
-                None => {}
-            }
+            // Spawn a thread for playing the audio.
+            thread::scope(|s| {
+                let aus = Arc::clone(&self.audio_service);
+                let ls = Arc::clone(&self.lyrics_service);
+                let id = cs.video_id.clone();
+
+                let elapsed = state.current_song_elapsed;
+                let lyrics_clone = lyrics.clone();
+                let state_arc = Arc::clone(&self.global_state);
+
+                s.spawn(async move || {
+                    aus.play(&id).await;
+                });
+
+                s.spawn(move || {
+                    if let Ok(lyric) = ls.play(elapsed, lyrics_clone) {
+                        if !lyric.is_empty() {
+                            let mut ret = vec![lyric];
+                            if let Ok(mut state) = state_arc.lock() {
+                                state.current_lyrics = ret;
+                            }
+                        }
+                    }
+                });
+            });
         }
     }
 
@@ -207,13 +204,7 @@ impl<
                     });
                 }
                 Key::Char(' ') => {
-                    if get_state(&self.global_state).song_state!= SongState::Playing {
-                        with_state(&self.global_state, |s| {
-                            s.song_state = SongState::Playing;
-                        });
-                        self.play().await;
-                    }
-
+                    // TODO: play/pause
                 }
                 Key::Char('h') => {
                     with_state(&self.global_state, |s| {
