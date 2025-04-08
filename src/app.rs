@@ -74,7 +74,6 @@ impl<
         }
     }
 
-    // tick is called every second
     pub(crate) async fn tick(&mut self, tick_rate_ms: u64) {
         // Our "tick" rate (refresh rate) is defined in ms.
         self.tick_accumulator += tick_rate_ms;
@@ -94,6 +93,14 @@ impl<
 
         // Update global state.
         let _ = with_state(&self.global_state.clone(), |s| {
+            // Move the next song in the queue to the current song if nothing is playing.
+            if s.current_song.is_none() && !s.song_list.is_empty() {
+                let song = Some(s.song_list.remove(0));
+                s.current_song = song.clone();
+                s.current_song_elapsed = 0;
+                s.song_state = SongState::Playing;
+            }
+
             // If a song is playing, update the elapsed time and start lyrics.
             if s.song_state == SongState::Playing {
                 s.current_song_elapsed += tick_rate_ms;
