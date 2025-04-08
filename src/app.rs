@@ -153,13 +153,10 @@ where
 
         let lyrics_handle = thread::spawn(move || {
             loop {
-                // Sleep for 200ms to avoid busy waiting.
-                thread::sleep(Duration::from_millis(200));
-
                 // Check if the song is still playing.
                 let imu_state = get_state(&ly_state);
                 if imu_state.song_state != SongState::Playing {
-                    break;
+                    return;
                 }
 
                 let lyrics = ls
@@ -173,6 +170,9 @@ where
                 let mut state = get_guarded_state(&ly_state);
 
                 state.current_lyrics = lyrics.clone();
+
+                // Sleep to avoid busy waiting.
+                thread::sleep(Duration::from_millis(100));
             }
         });
     }

@@ -247,13 +247,7 @@ impl AudioService for YouTube {
 
         // Run the command
         match cmd.status() {
-            Ok(status) => {
-                if status.success() {
-                    println!("Audio playback completed via ffplay");
-                } else {
-                    println!("ffplay failed with status: {}", status);
-                }
-            }
+            Ok(status) => {}
             Err(e) => {
                 println!("Failed to run ffplay: {}", e);
             }
